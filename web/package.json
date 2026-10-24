@@ -1,0 +1,9 @@
+{
+  "name": "stylemate-web",
+  "version": "1.0.0",
+  "description": "StyleMate Fashion Recommendation Website",
+  "scripts": {
+    "start": "npx -y serve build -l 3000",
+    "build": "node build.js"
+  }
+}

@@ -1,0 +1,36 @@
+# Dependencies
+node_modules/
+*/node_modules/
+package-lock.json
+
+# Environment variables & secrets
+.env
+.env.*
+!.env.example
+
+# Local SQLite databases
+*.sqlite
+*.sqlite3
+*.db
+api/stylemate.sqlite*
+
+# User uploads & cached media
+uploads/
+*/uploads/
+.tempmediaStorage/
+scratch/
+
+# Build artifacts & logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+*.log
+web/build/
+dist/
+
+# OS and IDE files
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+.agents/
