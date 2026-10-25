@@ -395,7 +395,7 @@ function renderProductCard(product) {
         <h3>${name}</h3>
         <p class="catalog-tags">${occasions}</p>
         <div class="catalog-actions">
-          <button class="btn btn-secondary btn-sm" onclick="openProductTryOn(${escapeJson(product)})">Preview collection</button>
+          <button class="btn btn-secondary btn-sm" onclick="openProductTryOn(${escapeJson(product)})">🪞 See Live / Try On</button>
           <button class="btn btn-primary btn-sm" onclick="toggleFavorite('${escapeHtml(product.id)}')">${isFavorite ? '♥ Saved' : '♡ Save favorite'}</button>
         </div>
       </div>
