@@ -69,6 +69,7 @@ def main():
         description = payload.get("description", "A fashion garment piece")
         steps = max(20, int(payload.get("steps", 20)))
         seed = int(payload.get("seed", 42))
+        auto_crop = bool(payload.get("auto_crop", True))
     else:
         model = args.model
         garment = args.garment
@@ -76,6 +77,7 @@ def main():
         description = args.description
         steps = args.steps
         seed = args.seed
+        auto_crop = True
 
     if not model or not garment or not output:
         print(json.dumps({"success": False, "error": "model, garment, and output must be specified"}))
@@ -108,7 +110,7 @@ def main():
             garm_img=handle_file(garment_tmp),
             garment_des=description,
             is_checked=True,
-            is_checked_crop=False,
+            is_checked_crop=auto_crop,
             denoise_steps=steps,
             seed=seed,
             api_name="/tryon"

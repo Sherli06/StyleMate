@@ -1651,8 +1651,11 @@ function renderVirtualTryOnModal() {
                 <img src="${state.tryonUserPhoto}" alt="Your uploaded photo" />
               </div>
               <div class="tryon-panel-name">Your Uploaded Photo</div>
-              <p style="font-size:0.75rem; color:#34d399; margin:0.3rem 0 0.5rem; font-weight:600;">
+              <p style="font-size:0.75rem; color:var(--accent); margin:0.3rem 0 0.2rem; font-weight:600;">
                 ✓ Photo loaded and ready for fitting
+              </p>
+              <p style="font-size:0.72rem; color:var(--text-muted); margin:0 0 0.5rem; line-height:1.35; background:var(--secondary); padding:0.35rem 0.5rem; border-radius:6px; border:1px solid var(--border-subtle);">
+                💡 <strong>Tip for Full Drape:</strong> Standing or waist-up photos ensure the full shirt/dress fits. Passport headshots crop off the lower garment.
               </p>
               <div style="margin-top:auto;">
                 <input type="file" id="tryonUserPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleUserPhotoUploadForTryon(this)" />

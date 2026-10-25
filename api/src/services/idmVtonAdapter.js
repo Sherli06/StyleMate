@@ -68,7 +68,11 @@ async function generateTryOn(modelImage, productImage, options = {}) {
     accessory: 'A stylish fashion accessory',
   };
 
-  const description = options.prompt || categoryDescriptions[options.category] || 'A fashion garment piece';
+  const baseDesc = options.productName 
+    ? `${options.productName}, ${categoryDescriptions[options.category] || 'fashion clothing piece'}` 
+    : (categoryDescriptions[options.category] || 'A fashion garment piece');
+
+  const description = options.prompt || baseDesc;
 
   const payload = {
     model: modelImage,
@@ -76,6 +80,7 @@ async function generateTryOn(modelImage, productImage, options = {}) {
     output: outputPath,
     description,
     steps: Math.max(20, options.steps || 20),
+    auto_crop: options.auto_crop !== false,
     seed: 42,
   };
 

@@ -82,6 +82,7 @@ router.post('/generate', authenticate, async (req, res, next) => {
 
     const result = await tryonAdapter.generateTryOn(model_image.trim(), product.image_url, {
       category: product.category,
+      productName: product.name,
       prompt: req.body.prompt,
       generation_mode: req.body.generation_mode,
       resolution: req.body.resolution
