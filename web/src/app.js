@@ -1548,14 +1548,14 @@ async function handleGenerateRecommendations() {
   render();
 
   try {
-    const occasionName = document.getElementById('recOccasion')?.value || state.selectedOccasion || 'Casual Outing';
-    const occObj = state.occasions.find(o => o.name === occasionName) || state.occasions[0];
+    const occKey = document.getElementById('recOccasion')?.value || state.selectedOccasion || 'casual';
+    const occObj = state.occasions.find(o => o.key_name === occKey || o.id === occKey || o.name === occKey) || state.occasions[0];
 
     const res = await api('/api/recommendations/generate', {
       method: 'POST',
       body: JSON.stringify({
-        occasion_id: occObj?.id,
-        occasion: occasionName,
+        occasion_id: occObj?.id || occKey,
+        occasion: occObj?.key_name || occKey,
       })
     });
 

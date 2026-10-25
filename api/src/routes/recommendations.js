@@ -46,10 +46,12 @@ router.post('/generate', authenticate, async (req, res) => {
       formality_level: 'Smart Casual', feedback_weights: '{}'
     };
 
-    // 4. Fetch wardrobe
-    const wardrobeItems = await db.query('SELECT * FROM wardrobe_items WHERE user_id = ?', [req.user.id]);
-    if (!wardrobeItems || wardrobeItems.length === 0) {
-      return res.status(400).json({ error: 'Add wardrobe items before generating recommendations.' });
+    // 4. Fetch wardrobe (auto-seed starter wardrobe if user has insufficient items)
+    let wardrobeItems = await db.query('SELECT * FROM wardrobe_items WHERE user_id = ?', [req.user.id]);
+    if (!wardrobeItems || wardrobeItems.length < 4) {
+      const { seedStarterWardrobeForUser } = require('../services/starterWardrobe');
+      await seedStarterWardrobeForUser(db, req.user.id);
+      wardrobeItems = await db.query('SELECT * FROM wardrobe_items WHERE user_id = ?', [req.user.id]);
     }
 
     // 5. Fetch weather (stub)
