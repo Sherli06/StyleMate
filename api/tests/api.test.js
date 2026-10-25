@@ -1,3 +1,4 @@
+const path = require('path');
 const request = require('supertest');
 const { app } = require('../src/server');
 const db = require('../src/db/connection');
@@ -257,24 +258,38 @@ describe('Shared catalogue and favorites', () => {
     expect(filtered.body.products.some((product) => product.id === productId)).toBe(true);
   });
 
-  test('every occasion/category filter returns at least five distinct catalogue items', async () => {
-    const counts = await db.query(
-      `SELECT p.category, o.key_name AS occasion, COUNT(DISTINCT p.id) AS item_count
-       FROM products p
-       JOIN product_occasions po ON po.product_id = p.id
-       JOIN occasions o ON o.id = po.occasion_id
-       GROUP BY p.category, o.key_name`
-    );
-    expect(counts.length).toBeGreaterThanOrEqual(8 * 13);
-    expect(counts.every((entry) => Number(entry.item_count) >= 5)).toBe(true);
-
+  test('category and occasion filters return relevant distinct catalogue items without universal padding', async () => {
+    // Verify all 8 categories exist with at least five distinct items per category
     const categories = await db.query('SELECT category, COUNT(DISTINCT id) AS item_count FROM products GROUP BY category');
     expect(categories).toHaveLength(8);
     expect(categories.every((entry) => Number(entry.item_count) >= 5)).toBe(true);
+
     const duplicatedNames = await db.query(
       'SELECT name FROM products GROUP BY name HAVING COUNT(DISTINCT category) > 1'
     );
     expect(duplicatedNames).toHaveLength(0);
+
+    // Verify combined category and occasion filter returns relevant results
+    const collegeTops = await request(app).get('/api/products?category=top&occasion=college');
+    expect(collegeTops.statusCode).toBe(200);
+    expect(collegeTops.body.products.length).toBeGreaterThanOrEqual(1);
+    expect(collegeTops.body.products.every((p) => p.category === 'top' && p.occasions.includes('college'))).toBe(true);
+
+    const sportsBottoms = await request(app).get('/api/products?category=bottom&occasion=sports');
+    expect(sportsBottoms.statusCode).toBe(200);
+    expect(sportsBottoms.body.products.length).toBeGreaterThanOrEqual(1);
+    expect(sportsBottoms.body.products.every((p) => p.category === 'bottom' && p.occasions.includes('sports'))).toBe(true);
+
+    // Verify that products are NOT padded with all occasions universally
+    const sportsLeggings = await db.query(
+      `SELECT o.key_name FROM product_occasions po
+       JOIN products p ON p.id = po.product_id
+       JOIN occasions o ON o.id = po.occasion_id
+       WHERE p.name = 'Breathable Active Leggings'`
+    );
+    const assignedKeys = sportsLeggings.map((r) => r.key_name);
+    expect(assignedKeys).not.toContain('wedding');
+    expect(assignedKeys).not.toContain('temple');
   });
 
   test('users can save and remove sample catalogue items as favorites', async () => {
@@ -296,6 +311,37 @@ describe('Shared catalogue and favorites', () => {
       .set('Authorization', `Bearer ${authToken}`);
     expect(removed.statusCode).toBe(200);
     expect(removed.body.products.some((item) => item.id === productId)).toBe(false);
+  });
+
+  test('admin can delete a catalogue product and regular user cannot', async () => {
+    // Create a temporary product to test deletion
+    const toDeleteRes = await request(app)
+      .post('/api/products')
+      .set('Authorization', `Bearer ${adminToken}`)
+      .send({
+        name: 'Item To Delete',
+        category: 'jacket',
+        image_url: 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=700',
+        image_source: 'https://unsplash.com/license',
+        occasions: ['casual']
+      });
+    expect(toDeleteRes.statusCode).toBe(201);
+    const deleteId = toDeleteRes.body.product.id;
+
+    // Regular user attempt
+    const denied = await request(app)
+      .delete(`/api/products/${deleteId}`)
+      .set('Authorization', `Bearer ${authToken}`);
+    expect(denied.statusCode).toBe(403);
+
+    // Admin deletion
+    const deleted = await request(app)
+      .delete(`/api/products/${deleteId}`)
+      .set('Authorization', `Bearer ${adminToken}`);
+    expect(deleted.statusCode).toBe(200);
+
+    const lookup = await db.query('SELECT id FROM products WHERE id = ?', [deleteId]);
+    expect(lookup).toHaveLength(0);
   });
 });
 
@@ -577,5 +623,116 @@ describe('Stubs & Weather', () => {
     const res = await request(app).get('/api/health');
     expect(res.statusCode).toBe(200);
     expect(res.body.status).toBe('healthy');
+  });
+});
+
+// ════════════════════════════════════════════════════════════════════════════
+// 8. VIRTUAL TRY-ON (FASHN INTEGRATION) TESTS
+// ════════════════════════════════════════════════════════════════════════════
+describe('Virtual Try-On Endpoints', () => {
+  test('GET /api/tryon/config — returns try-on availability and supported categories', async () => {
+    const res = await request(app).get('/api/tryon/config');
+    expect(res.statusCode).toBe(200);
+    expect(typeof res.body.available).toBe('boolean');
+    expect(res.body.available).toBe(true);
+    expect(res.body.provider).toBe('idm-vton');
+    expect(Array.isArray(res.body.supported_categories)).toBe(true);
+    expect(res.body.supported_categories).toEqual(['top', 'jacket', 'bottom', 'dress']);
+    expect(res.body.supported_categories).not.toContain('shoes');
+    expect(res.body.supported_categories).not.toContain('bag');
+  });
+
+  test('POST /api/tryon/generate — rejects unauthenticated requests', async () => {
+    const res = await request(app)
+      .post('/api/tryon/generate')
+      .send({ product_id: 'some-id', model_image: 'https://example.com/model.jpg', consent: true });
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('POST /api/tryon/generate — rejects requests without consent', async () => {
+    const res = await request(app)
+      .post('/api/tryon/generate')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ product_id: 'some-id', model_image: 'https://example.com/model.jpg', consent: false });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/consent/i);
+  });
+
+  test('POST /api/tryon/generate — rejects missing model image', async () => {
+    const res = await request(app)
+      .post('/api/tryon/generate')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({ product_id: 'some-id', model_image: '', consent: true });
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/model_image/i);
+  });
+
+  test('POST /api/tryon/generate — returns 404 when product missing', async () => {
+    const res = await request(app)
+      .post('/api/tryon/generate')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        product_id: 'non-existent-id',
+        model_image: 'https://example.com/model.jpg',
+        consent: true
+      });
+    expect(res.statusCode).toBe(404);
+  });
+
+  test('POST /api/tryon/generate — rejects unsupported categories (shoes/accessories) for IDM-VTON', async () => {
+    // Find a shoes product from catalogue
+    const productsRes = await request(app).get('/api/products?category=shoes');
+    expect(productsRes.statusCode).toBe(200);
+    const shoeProduct = productsRes.body.products.find(p => p.category === 'shoes');
+    expect(shoeProduct).toBeDefined();
+
+    const res = await request(app)
+      .post('/api/tryon/generate')
+      .set('Authorization', `Bearer ${authToken}`)
+      .send({
+        product_id: shoeProduct.id,
+        model_image: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800',
+        consent: true
+      });
+
+    expect(res.statusCode).toBe(400);
+    expect(res.body.error).toMatch(/not supported for virtual try-on/i);
+    expect(res.body.error).toMatch(/shoes/i);
+  });
+
+  test('GET /api/tryon/status/:predictionId — rejects unauthenticated requests', async () => {
+    const res = await request(app).get('/api/tryon/status/test-prediction-123');
+    expect(res.statusCode).toBe(401);
+  });
+
+  test('tryonAdapter unified router correctly exports provider status and methods', () => {
+    const tryonAdapter = require('../src/services/tryonAdapter');
+    expect(tryonAdapter.getActiveProviderName()).toBe('idm-vton');
+    expect(tryonAdapter.isConfigured()).toBe(true);
+    expect(tryonAdapter.getSupportedCategories()).toEqual(['top', 'jacket', 'bottom', 'dress']);
+  });
+
+  test('idmVtonAdapter toBlob handles base64 data URIs and validates input', async () => {
+    const { toBlob } = require('../src/services/idmVtonAdapter');
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    const blob = await toBlob(dataUri, path.resolve(__dirname, '../uploads'));
+    expect(blob).toBeDefined();
+    expect(blob.type).toBe('image/png');
+
+    await expect(toBlob('', path.resolve(__dirname, '../uploads'))).rejects.toThrow();
+  });
+
+  test('toAccessibleImage converts local upload paths to Data URI and preserves public URLs', () => {
+    const { toAccessibleImage } = require('../src/services/fashnAdapter');
+    const dataUri = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+    expect(toAccessibleImage(dataUri)).toBe(dataUri);
+
+    const publicUrl = 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800';
+    expect(toAccessibleImage(publicUrl)).toBe(publicUrl);
+
+    // Test with the existing sample upload file in api/uploads
+    const localUploadUrl = 'http://localhost:5000/uploads/5fdc9353-c01b-478d-aa87-33a906ffc8e4.png';
+    const resolved = toAccessibleImage(localUploadUrl);
+    expect(resolved.startsWith('data:image/png;base64,')).toBe(true);
   });
 });

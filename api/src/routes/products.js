@@ -86,4 +86,17 @@ router.post('/', authenticate, requireAdmin, async (req, res, next) => {
   }
 });
 
+router.delete('/:id', authenticate, requireAdmin, async (req, res, next) => {
+  try {
+    const existing = await db.query('SELECT * FROM products WHERE id = ?', [req.params.id]);
+    if (!existing || existing.length === 0) {
+      return res.status(404).json({ error: 'Product not found.' });
+    }
+    await db.query('DELETE FROM products WHERE id = ?', [req.params.id]);
+    return res.json({ message: 'Catalogue product deleted successfully.' });
+  } catch (err) {
+    return next(err);
+  }
+});
+
 module.exports = router;

@@ -50,7 +50,7 @@ const STARTER_WARDROBE_ITEMS = [
     material: 'Modal Blend',
     season: 'Spring/Fall',
     formality: 'Casual',
-    image_url: 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=600&auto=format&fit=crop&q=80',
+    image_url: 'https://images.unsplash.com/photo-1524137160148-d4147db75a51?w=600&auto=format&fit=crop&q=80',
     tags: JSON.stringify(['casual', 'green', 'ribbed', 'autumn']),
     is_favorite: 0
   },

@@ -134,44 +134,44 @@ const occasionsData = [
 ];
 
 const catalogueSamples = [
-  ['Linen Everyday Shirt', 'top', 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=700&auto=format&fit=crop&q=80', 4200, ['college', 'school', 'office', 'casual'], unsplashLicense('1598033129183-c4f50c736f10')],
+  ['Linen Everyday Shirt', 'top', 'https://images.unsplash.com/photo-1598033129183-c4f50c736f10?w=700&auto=format&fit=crop&q=80', 4200, ['college', 'school', 'office', 'casual', 'interview'], unsplashLicense('1598033129183-c4f50c736f10')],
   ['Soft Cotton Graphic Tee', 'top', 'https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=700&auto=format&fit=crop&q=80', 2400, ['college', 'school', 'casual', 'sports'], unsplashLicense('1521572163474-6864f9cf17ab')],
-  ['Tailored Navy Trousers', 'bottom', 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=700&auto=format&fit=crop&q=80', 5200, ['college', 'office', 'formal', 'casual'], unsplashLicense('1541099649105-f69ad21f3246')],
+  ['Tailored Navy Trousers', 'bottom', 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=700&auto=format&fit=crop&q=80', 5200, ['college', 'office', 'formal', 'casual', 'interview'], unsplashLicense('1541099649105-f69ad21f3246')],
   ['Relaxed Denim Jeans', 'bottom', 'https://images.unsplash.com/photo-1582418702059-97ebafb35d09?w=700&auto=format&fit=crop&q=80', 4800, ['college', 'school', 'casual'], unsplashLicense('1582418702059-97ebafb35d09')],
-  ['Floral Occasion Dress', 'dress', 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=700&auto=format&fit=crop&q=80', 6900, ['casual', 'wedding', 'function', 'traditional'], unsplashLicense('1595777457583-95e059d581b8')],
+  ['Floral Occasion Dress', 'dress', 'https://images.unsplash.com/photo-1595777457583-95e059d581b8?w=700&auto=format&fit=crop&q=80', 6900, ['casual', 'wedding', 'function', 'traditional', 'festival'], unsplashLicense('1595777457583-95e059d581b8')],
   ['Classic Evening Dress', 'dress', 'https://images.unsplash.com/photo-1566174053879-31528523f8ae?w=700&auto=format&fit=crop&q=80', 8900, ['formal', 'wedding', 'function'], unsplashLicense('1566174053879-31528523f8ae')],
   ['Comfort Court Sneakers', 'shoes', 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=700&auto=format&fit=crop&q=80', 5500, ['college', 'school', 'casual', 'sports'], unsplashLicense('1595950653106-6c9ebd614d3a')],
-  ['Leather Office Loafers', 'shoes', 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=700&auto=format&fit=crop&q=80', 7200, ['office', 'formal', 'function'], unsplashLicense('1543163521-1bf539c55dd2')],
-  ['Embroidered Festive Flats', 'shoes', 'https://images.unsplash.com/photo-1608256246200-53e635b5b65f?w=700&auto=format&fit=crop&q=80', 3900, ['traditional', 'temple', 'wedding', 'function'], unsplashLicense('1608256246200-53e635b5b65f')],
+  ['Leather Office Loafers', 'shoes', 'https://images.unsplash.com/photo-1543163521-1bf539c55dd2?w=700&auto=format&fit=crop&q=80', 7200, ['office', 'formal', 'function', 'interview'], unsplashLicense('1543163521-1bf539c55dd2')],
+  ['Embroidered Festive Flats', 'shoes', 'https://images.unsplash.com/photo-1608256246200-53e635b5b65f?w=700&auto=format&fit=crop&q=80', 3900, ['traditional', 'temple', 'wedding', 'function', 'festival'], unsplashLicense('1608256246200-53e635b5b65f')],
   ['Everyday Canvas Backpack', 'bag', 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=700&auto=format&fit=crop&q=80', 3600, ['college', 'school', 'casual'], unsplashLicense('1553062407-98eeb64c6a62')],
-  ['Structured Work Tote', 'bag', 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=700&auto=format&fit=crop&q=80', 6400, ['office', 'formal', 'college'], unsplashLicense('1548036328-c9fa89d128fa')],
+  ['Structured Work Tote', 'bag', 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=700&auto=format&fit=crop&q=80', 6400, ['office', 'formal', 'college', 'interview'], unsplashLicense('1548036328-c9fa89d128fa')],
   ['Evening Clutch Bag', 'bag', 'https://images.unsplash.com/photo-1566150905458-1bf1fc113f0d?w=700&auto=format&fit=crop&q=80', 4500, ['formal', 'wedding', 'function'], unsplashLicense('1566150905458-1bf1fc113f0d')],
-  ['Gold Chain Necklace', 'necklace', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=700&auto=format&fit=crop&q=80', 2900, ['office', 'casual', 'formal', 'wedding'], unsplashLicense('1599643478518-a784e5dc4c8f')],
-  ['Festive Statement Earrings', 'accessory', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=700&auto=format&fit=crop&q=80', 3200, ['traditional', 'temple', 'wedding', 'function'], unsplashLicense('1535632066927-ab7c9ab60908')],
+  ['Gold Chain Necklace', 'necklace', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=700&auto=format&fit=crop&q=80', 2900, ['office', 'casual', 'formal', 'wedding', 'festival'], unsplashLicense('1599643478518-a784e5dc4c8f')],
+  ['Festive Statement Earrings', 'accessory', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=700&auto=format&fit=crop&q=80', 3200, ['traditional', 'temple', 'wedding', 'function', 'festival'], unsplashLicense('1535632066927-ab7c9ab60908')],
   ['Light Training Jacket', 'jacket', 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=700&auto=format&fit=crop&q=80', 5900, ['college', 'casual', 'sports'], unsplashLicense('1551028719-00167b16eac5')],
   ['Breathable Active Leggings', 'bottom', 'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=700&auto=format&fit=crop&q=80', 3400, ['sports', 'casual'], unsplashLicense('1506629082955-511b1aa562c8')],
-  ['Cotton Kurta', 'dress', 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=700&auto=format&fit=crop&q=80', 6100, ['traditional', 'temple', 'function', 'college'], unsplashLicense('1610030469983-98e550d6193c')],
+  ['Cotton Kurta', 'dress', 'https://images.unsplash.com/photo-1610030469983-98e550d6193c?w=700&auto=format&fit=crop&q=80', 6100, ['traditional', 'temple', 'function', 'college', 'festival'], unsplashLicense('1610030469983-98e550d6193c')],
   ['Chanderi Occasion Set', 'dress', 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=700&auto=format&fit=crop&q=80', 9500, ['traditional', 'temple', 'function', 'wedding', 'festival'], unsplashLicense('1583391733956-3750e0ff4e8b')],
   ['Relaxed Knit Top', 'top', 'https://images.unsplash.com/photo-1525507119028-ed4c629a60a3?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college', 'office'], unsplashLicense('1525507119028-ed4c629a60a3')],
-  ['Everyday Cotton Blouse', 'top', 'https://images.unsplash.com/photo-1503342217505-b0a15ec3261c?w=700&auto=format&fit=crop&q=80', 0, ['office', 'interview', 'casual'], unsplashLicense('1503342217505-b0a15ec3261c')],
+  ['Everyday Cotton Blouse', 'top', 'https://images.unsplash.com/photo-1589310243389-96a5483213a8?w=700&auto=format&fit=crop&q=80', 0, ['office', 'interview', 'casual'], unsplashLicense('1589310243389-96a5483213a8')],
   ['Layered Casual Tee', 'top', 'https://images.unsplash.com/photo-1483985988355-763728e1935b?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college'], unsplashLicense('1483985988355-763728e1935b')],
-  ['Wide-Leg Casual Trousers', 'bottom', 'https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'office', 'college'], unsplashLicense('1473966968600-fa801b869a1a')],
+  ['Wide-Leg Casual Trousers', 'bottom', 'https://images.unsplash.com/photo-1473966968600-fa801b869a1a?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'office', 'college', 'interview'], unsplashLicense('1473966968600-fa801b869a1a')],
   ['Active Stretch Leggings', 'bottom', 'https://images.unsplash.com/photo-1506629082955-511b1aa562c8?w=700&auto=format&fit=crop&q=80', 0, ['sports', 'casual'], unsplashLicense('1506629082955-511b1aa562c8')],
   ['Printed Occasion Dress', 'dress', 'https://images.unsplash.com/photo-1583391733956-3750e0ff4e8b?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college', 'party'], unsplashLicense('1583391733956-3750e0ff4e8b')],
   ['Retro Court Sneakers', 'shoes', 'https://images.unsplash.com/photo-1460353581641-37baddab0fa2?w=700&auto=format&fit=crop&q=80', 0, ['college', 'casual', 'sports'], unsplashLicense('1460353581641-37baddab0fa2')],
   ['Sporty Red Sneakers', 'shoes', 'https://images.unsplash.com/photo-1542291026-7eec264c27ff?w=700&auto=format&fit=crop&q=80', 0, ['sports', 'casual'], unsplashLicense('1542291026-7eec264c27ff')],
   ['Quilted Shoulder Bag', 'bag', 'https://images.unsplash.com/photo-1584917865442-de89df76afd3?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'party', 'formal'], unsplashLicense('1584917865442-de89df76afd3')],
   ['Everyday Canvas Tote', 'bag', 'https://images.unsplash.com/photo-1553062407-98eeb64c6a62?w=700&auto=format&fit=crop&q=80', 0, ['college', 'casual', 'school'], unsplashLicense('1553062407-98eeb64c6a62')],
-  ['Pearl Pendant Necklace', 'necklace', 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=700&auto=format&fit=crop&q=80', 0, ['formal', 'wedding', 'function', 'office'], unsplashLicense('1611652022419-a9419f74343d')],
-  ['Layered Chain Necklace', 'necklace', 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'party', 'college'], unsplashLicense('1515562141207-7a88fb7ce338')],
+  ['Pearl Pendant Necklace', 'necklace', 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=700&auto=format&fit=crop&q=80', 0, ['formal', 'wedding', 'function', 'office', 'interview'], unsplashLicense('1611652022419-a9419f74343d')],
+  ['Layered Chain Necklace', 'necklace', 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'party', 'college', 'festival'], unsplashLicense('1515562141207-7a88fb7ce338')],
   ['Silver Pendant Necklace', 'necklace', 'https://images.unsplash.com/photo-1617038220319-276d3cfab638?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'office', 'college'], unsplashLicense('1617038220319-276d3cfab638')],
-  ['Minimal Gold Necklace', 'necklace', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=700&auto=format&fit=crop&q=80', 0, ['office', 'formal', 'casual', 'party'], unsplashLicense('1599643478518-a784e5dc4c8f')],
-  ['Statement Hoop Earrings', 'accessory', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=700&auto=format&fit=crop&q=80', 0, ['party', 'casual', 'college'], unsplashLicense('1535632066927-ab7c9ab60908')],
-  ['Pearl Drop Earrings', 'accessory', 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=700&auto=format&fit=crop&q=80', 0, ['wedding', 'formal', 'function'], unsplashLicense('1611652022419-a9419f74343d')],
+  ['Minimal Gold Necklace', 'necklace', 'https://images.unsplash.com/photo-1599643478518-a784e5dc4c8f?w=700&auto=format&fit=crop&q=80', 0, ['office', 'formal', 'casual', 'party', 'interview'], unsplashLicense('1599643478518-a784e5dc4c8f')],
+  ['Statement Hoop Earrings', 'accessory', 'https://images.unsplash.com/photo-1535632066927-ab7c9ab60908?w=700&auto=format&fit=crop&q=80', 0, ['party', 'casual', 'college', 'festival'], unsplashLicense('1535632066927-ab7c9ab60908')],
+  ['Pearl Drop Earrings', 'accessory', 'https://images.unsplash.com/photo-1611652022419-a9419f74343d?w=700&auto=format&fit=crop&q=80', 0, ['wedding', 'formal', 'function', 'interview'], unsplashLicense('1611652022419-a9419f74343d')],
   ['Festive Hair Accessory', 'accessory', 'https://images.unsplash.com/photo-1523293182086-7651a899d37f?w=700&auto=format&fit=crop&q=80', 0, ['traditional', 'wedding', 'festival', 'temple', 'function'], unsplashLicense('1523293182086-7651a899d37f')],
   ['Colorful Style Scarf', 'accessory', 'https://images.unsplash.com/photo-1515562141207-7a88fb7ce338?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'festival', 'traditional'], unsplashLicense('1515562141207-7a88fb7ce338')],
   ['Lightweight Denim Jacket', 'jacket', 'https://images.unsplash.com/photo-1591047139829-d91aecb6caea?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college'], unsplashLicense('1591047139829-d91aecb6caea')],
-  ['Classic Layering Jacket', 'jacket', 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=700&auto=format&fit=crop&q=80', 0, ['office', 'casual', 'formal'], unsplashLicense('1551028719-00167b16eac5')],
+  ['Classic Layering Jacket', 'jacket', 'https://images.unsplash.com/photo-1551028719-00167b16eac5?w=700&auto=format&fit=crop&q=80', 0, ['office', 'casual', 'formal', 'interview'], unsplashLicense('1551028719-00167b16eac5')],
   ['Everyday Utility Jacket', 'jacket', 'https://images.unsplash.com/photo-1544923246-77307dd654cb?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college'], unsplashLicense('1544923246-77307dd654cb')],
   ['Soft Casual Layer Jacket', 'jacket', 'https://images.unsplash.com/photo-1591369822096-ffd140ec948f?w=700&auto=format&fit=crop&q=80', 0, ['casual', 'college'], unsplashLicense('1591369822096-ffd140ec948f')]
 ];
@@ -438,6 +438,34 @@ async function seed() {
   }
 
   await db.query('DELETE FROM users WHERE email = ?', ['demo@stylemate.ai']);
+
+  // Optionally provision an admin account if explicit environment variables are supplied at runtime.
+  // Never hardcode personal accounts or fixed credentials into seeding scripts.
+  if (process.env.ADMIN_EMAIL && process.env.ADMIN_PASSWORD) {
+    const adminEmail = process.env.ADMIN_EMAIL.trim().toLowerCase();
+    const existing = await db.query('SELECT id FROM users WHERE email = ?', [adminEmail]);
+    if (!existing || existing.length === 0) {
+      const bcrypt = require('bcryptjs');
+      const { v4: uuidv4 } = require('uuid');
+      const id = uuidv4();
+      const hash = await bcrypt.hash(process.env.ADMIN_PASSWORD, 12);
+      const name = process.env.ADMIN_NAME || 'StyleMate Admin';
+      await db.query(
+        'INSERT INTO users (id, email, password_hash, full_name, role) VALUES (?, ?, ?, ?, ?)',
+        [id, adminEmail, hash, name, 'admin']
+      );
+      await db.query(
+        'INSERT INTO profiles (user_id, gender, age_group, body_type, skin_tone) VALUES (?, ?, ?, ?, ?)',
+        [id, 'Other', '25-34', 'Athletic', 'Medium']
+      );
+      await db.query(
+        'INSERT INTO user_preferences (user_id, preferred_styles, preferred_colors, formality_level) VALUES (?, ?, ?, ?)',
+        [id, JSON.stringify(['Casual', 'Smart Casual']), JSON.stringify([]), 'Smart Casual']
+      );
+      console.log(`[Seed] Provisioned admin account from environment variable.`);
+    }
+  }
+
   await db.query('DELETE FROM product_occasions');
 
   for (const [name, category, imageUrl, , occasionKeys, imageSource] of catalogueSamples) {

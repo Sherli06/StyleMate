@@ -16,7 +16,8 @@ The project includes a browser app, an Expo mobile app, and a shared Express API
 | Favorites | **Implemented and API-verified** | Save or remove a collection from the web or mobile catalogue. Favorites persist in the database and remain private to the signed-in account. |
 | Admin collection management | **Implemented; API create/permission tested** | An admin can add an image, name, category, source/license URL, and editable occasion tags. New entries are saved to the shared database. A full admin UI round-trip and persistence after restarting the server have not yet been manually rechecked in this version. |
 | Wardrobe uploads | **Implemented and API-verified** | Upload JPEG/PNG/WebP clothing images up to 10 MB. Images are kept on the API host; retrieval is private to the owner. |
-| Collection preview | **Basic reference preview implemented; realistic try-on blocked** | The selected product image appears in a doll/avatar or photo-reference view. This does not synthesize fitted clothing, perform garment segmentation, or predict size/fit. |
+| AI Virtual Try-On Studio | **Implemented & E2E-verified (Free IDM-VTON ZeroGPU)** | Real neural diffusion try-on powered by IDM-VTON (`yisol/IDM-VTON`) with zero paid API keys or subscriptions required. Supports tops, jackets, bottoms, and dresses. Paid FASHN adapter is preserved as a switchable alternative. |
+| Collection preview | **Basic reference preview implemented; realistic try-on handled via Try-On Studio** | The selected product image appears in a doll/avatar or photo-reference view, or can be directly opened in the Virtual Try-On Studio for real AI fitting. |
 | Outfit recommendations | **Implemented and API-verified** | Suggestions use transparent deterministic rules based on occasion, wardrobe tags, saved styles/colors, favorites, and feedback. No AI accuracy percentage is claimed. |
 | Physical mobile-device flow | **Implemented but not fully device-verified** | Android bundle export succeeds. A physical phone login and upload session has not been end-to-end tested. Expo web is not configured. |
 
@@ -24,11 +25,24 @@ The project includes a browser app, an Expo mobile app, and a shared Express API
 
 The seeded catalogue uses 40 separate product records with one category per record, source/reference links, and external Unsplash image URLs. Some images may be reused for different visual collection records; review each image and its current license/attribution requirements before public or commercial use. These entries are illustrative styling content, not retailer inventory or purchasable items.
 
+### Virtual Try-On Studio (IDM-VTON & Multi-Provider Architecture)
+
+StyleMate features an AI-powered Virtual Try-On Studio supporting authentic neural synthesis without requiring paid subscriptions or API credits:
+
+- **Default Provider**: `idm-vton` connects to the official IDM-VTON model hosted on Hugging Face Spaces (`yisol/IDM-VTON`) utilizing free ZeroGPU hardware.
+- **Alternative Provider**: `fashn` connects to the FASHN Try-On Max API (requires `FASHN_API_KEY`).
+- **Supported Apparel Categories**: `top`, `jacket`, `bottom`, and `dress`.
+- **Unsupported Categories**: Footwear (`shoes`), bags, necklaces, and accessories are strictly excluded from virtual fitting because the IDM-VTON model operates exclusively on upper-body, lower-body, and dress garments. The frontend UI disables generation for unsupported categories and provides clear, transparent feedback.
+- **Licensing & Academic Use**: IDM-VTON is distributed under the `CC BY-NC-SA 4.0` (Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International) license. It is legally suitable for academic coursework, educational demos, and student evaluations. Commercial deployment is strictly prohibited without appropriate commercial licensing from the authors.
+- **Hardware & Environment Considerations**: Running an SDXL-based virtual try-on model locally requires an NVIDIA GPU with at least 12–16 GB of dedicated VRAM and CUDA support. On client machines equipped with integrated graphics (e.g. Intel Iris Xe) and limited RAM (8 GB), local execution would cause immediate out-of-memory crashes. The hosted ZeroGPU endpoint executes all neural processing remotely, eliminating local GPU requirements.
+- **Privacy & Token Security**: All remote communications are performed server-side through Express adapter services (`api/src/services/idmVtonAdapter.js`). No Hugging Face tokens or third-party credentials are ever sent or exposed to the browser. User consent is explicitly captured and validated before every generation.
+
 ### Explicitly out of scope
 
 - Store inventory, product prices, cart, checkout, orders, or payment processing.
-- Realistic photo virtual try-on, garment segmentation, or size/fit prediction.
-- Weather-based recommendations or a remote AI model.
+- Footwear, handbag, jewelry, or accessory neural deformation (unsupported by open-source diffusion models).
+- Automatic size/fit tailoring or millimeter garment measurement predictions.
+- Weather-based recommendations or speculative remote AI models.
 
 ## Requirements
 

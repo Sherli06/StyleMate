@@ -21,11 +21,18 @@ const state = {
   searchQuery: '',
   isGenerating: false,
   favorites: [],
-  activeTryOn: null,
-  selectedTryOnItemId: null,
-  tryonMode: 'doll', // 'doll' or 'photo'
-  userTryonPhoto: null,
-  tryonLayers: { top: true, bottom: true, shoes: true, bag: true, necklace: true },
+  // Virtual Try-On Studio State
+  tryonProduct: null,
+  tryonModelSource: 'default', // 'default' or 'upload'
+  tryonSelectedModelIndex: 0,
+  tryonUserPhoto: null,
+  tryonConsent: false,
+  tryonIsGenerating: false,
+  tryonStatusMessage: '',
+  tryonResultImage: null,
+  tryonError: null,
+  tryonPollingInterval: null,
+  tryonConfig: null,
 };
 
 // Category Icon Mapping
@@ -40,7 +47,7 @@ const CATEGORY_ICONS = {
   accessory: '✨',
 };
 
-// Skin Tone Color Palette for Mannequin
+// Skin Tone Color Palette for Profile Preferences
 const SKIN_TONE_MAP = {
   fair: '#fce7e0',
   light: '#f5d0b5',
@@ -110,13 +117,22 @@ async function initApp() {
   } catch (err) {
     if (err.status !== 401) showToast(`Could not restore account: ${err.message}`, 'error');
   }
-  const tasks = [loadOccasions()];
+  const tasks = [loadOccasions(), loadTryonConfig()];
   if (state.user) tasks.push(loadProfile(), loadWardrobe(), loadFavorites());
   const results = await Promise.allSettled(tasks);
   results.filter((result) => result.status === 'rejected').forEach((result) => {
     showToast(`Could not load account data: ${result.reason.message}`, 'error');
   });
   render();
+}
+
+async function loadTryonConfig() {
+  try {
+    const res = await api('/api/tryon/config');
+    state.tryonConfig = res;
+  } catch (err) {
+    console.warn('Could not load virtual try-on configuration:', err);
+  }
 }
 
 async function loadProfile() {
@@ -141,8 +157,8 @@ async function loadOccasions() {
 
 async function loadProducts() {
   const params = new URLSearchParams();
-  if (state.selectedOccasion) params.set('occasion', state.selectedOccasion);
-  if (state.productCategory !== 'all') params.set('category', state.productCategory);
+  if (state.selectedOccasion && state.selectedOccasion !== 'all') params.set('occasion', state.selectedOccasion);
+  if (state.productCategory && state.productCategory !== 'all') params.set('category', state.productCategory);
   const response = await api(`/api/products?${params.toString()}`);
   state.products = response.products || [];
 }
@@ -191,20 +207,12 @@ async function toggleFavorite(productId) {
 }
 
 function openProductTryOn(product) {
-  state.selectedTryOnItemId = product.id;
-  const item = {
-    ...product,
-    id: product.id,
-    title: product.name,
-    imageUrl: product.image_url,
-    category: product.category,
-    primaryColor: 'Catalogue item'
-  };
-  openInteractiveTryOn({
-    title: `Preview: ${product.name}`,
-    occasion: (product.occasions || []).join(', '),
-    outfit: { title: product.name, items: [item] }
-  });
+  state.tryonProduct = product;
+  state.tryonError = null;
+  state.tryonResultImage = null;
+  state.tryonIsGenerating = false;
+  state.tryonStatusMessage = '';
+  renderVirtualTryOnModal();
 }
 
 async function submitAdminProduct(event) {
@@ -365,6 +373,10 @@ function renderShopView() {
       <h1 class="page-title">Explore <span class="gradient-text">Collections</span></h1>
       <p class="catalog-sample-note">Style inspiration collections. Use both filters together; every category and occasion has at least five items.</p>
       <div class="occasion-grid">
+        <button class="occasion-card ${!state.selectedOccasion || state.selectedOccasion === 'all' ? 'selected' : ''}" onclick="selectOccasion('all')">
+          <div style="font-size:2rem;display:flex;align-items:center;justify-content:center;height:90px;background:var(--bg-glass);border-radius:12px;">✨</div>
+          <span>All Occasions</span>
+        </button>
         ${state.occasions.map((occasion) => `
           <button class="occasion-card ${state.selectedOccasion === occasion.key_name ? 'selected' : ''}" onclick="selectOccasion('${occasion.key_name}')">
             <img src="${occasion.image_url}" alt="" loading="lazy" />
@@ -403,23 +415,66 @@ function renderProductCard(product) {
   `;
 }
 
+async function handleDeleteProduct(id) {
+  if (!confirm('Are you sure you want to remove this product from the catalogue?')) return;
+  try {
+    await api(`/api/products/${id}`, { method: 'DELETE' });
+    showToast('Product removed from catalogue.');
+    await loadProducts();
+    render();
+  } catch (err) {
+    showToast(err.message, 'error');
+  }
+}
+
 function renderAdminView() {
   return `
     <section class="admin-page">
-      <h1 class="page-title">Admin <span class="gradient-text">Catalogue</span></h1>
+      <h1 class="page-title">Admin <span class="gradient-text">Catalogue Management</span></h1>
       <p class="catalog-sample-note">Add a style collection with image, category, and occasion tags. Items appear as inspiration, not listings for sale.</p>
       <form class="card admin-form" onsubmit="submitAdminProduct(event)">
-        <label>Product name<input class="form-control" name="name" required maxlength="160" /></label>
-        <label>Product image URL<input class="form-control" name="image_url" type="url" required placeholder="https://..." /></label>
-        <label>Image source / reuse license URL<input class="form-control" name="image_source" type="url" required placeholder="https://unsplash.com/license or image source page" /></label>
+        <label>Product name<input class="form-control" name="name" required maxlength="160" placeholder="e.g. Classic Trench Coat" /></label>
+        <label>Product image URL<input class="form-control" name="image_url" type="url" required placeholder="https://images.unsplash.com/..." /></label>
+        <label>Image source / reuse license URL<input class="form-control" name="image_source" type="url" required placeholder="https://unsplash.com/license" /></label>
         <label>Category<select class="form-control" name="category" required>
           ${['top', 'bottom', 'dress', 'shoes', 'bag', 'necklace', 'jacket', 'accessory'].map((category) => `<option value="${category}">${category}</option>`).join('')}
         </select></label>
         <fieldset><legend>Occasion tags (choose at least one)</legend>
-          ${state.occasions.map((occasion) => `<label class="occasion-check"><input type="checkbox" name="occasions" value="${occasion.key_name}" /> ${occasion.name}</label>`).join('')}
+          ${state.occasions.map((occasion) => `<label class="occasion-check"><input type="checkbox" name="occasions" value="${occasion.key_name}" /> ${escapeHtml(occasion.name)}</label>`).join('')}
         </fieldset>
         <button class="btn btn-primary" type="submit">Add catalogue product</button>
       </form>
+
+      <div style="margin-top:2.5rem;">
+        <h2 style="font-size:1.3rem; font-weight:700; margin-bottom:0.75rem;">Catalogue Items (${state.products.length})</h2>
+        <div style="overflow-x:auto;">
+          <table class="admin-items-table">
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Category</th>
+                <th>Occasions</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${state.products.map(p => `
+                <tr>
+                  <td>
+                    <img src="${escapeHtml(p.image_url)}" class="admin-prod-thumb" alt="" />
+                    <strong>${escapeHtml(p.name)}</strong>
+                  </td>
+                  <td><span class="catalog-category-badge" style="position:static;">${escapeHtml(p.category)}</span></td>
+                  <td style="color:var(--text-muted); font-size:0.8rem;">${(p.occasions || []).map(o => `#${escapeHtml(o)}`).join(' ')}</td>
+                  <td>
+                    <button class="btn btn-danger btn-sm" onclick="handleDeleteProduct('${escapeHtml(p.id)}')">Delete</button>
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      </div>
     </section>
   `;
 }
@@ -858,6 +913,11 @@ function renderModal() {
 }
 
 function closeModal() {
+  if (state.tryonPollingInterval) {
+    clearInterval(state.tryonPollingInterval);
+    state.tryonPollingInterval = null;
+  }
+  state.tryonIsGenerating = false;
   state.modal = null;
   render();
 }
@@ -1024,247 +1084,539 @@ async function handleRealPhotoUpload(event) {
   }
 }
 
-// ─── REAL INTERACTIVE TRY-ON STUDIO (DOLL & USER PHOTO MODES) ─────────────
+// ─── REAL AI VIRTUAL TRY-ON STUDIO (FASHN INTEGRATION) ───────────────────
+
+const DEFAULT_MODELS = [
+  {
+    id: 'model-female-1',
+    name: 'Female Studio Model',
+    gender: 'female',
+    thumbnail: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=300&auto=format&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?w=800&auto=format&fit=crop&q=80',
+    description: 'Standing full-body portrait, neutral studio background'
+  },
+  {
+    id: 'model-male-1',
+    name: 'Male Studio Model',
+    gender: 'male',
+    thumbnail: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=300&auto=format&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1507679799987-c73779587ccf?w=800&auto=format&fit=crop&q=80',
+    description: 'Standing full-body portrait, tailored posture'
+  },
+  {
+    id: 'model-female-2',
+    name: 'Female Casual Model',
+    gender: 'female',
+    thumbnail: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=300&auto=format&fit=crop&q=80',
+    url: 'https://images.unsplash.com/photo-1469334031218-e382a71b716b?w=800&auto=format&fit=crop&q=80',
+    description: 'Standing full-body portrait, relaxed pose'
+  }
+];
+
+function getCategoryTryOnNotes(category) {
+  const cat = (category || '').toLowerCase();
+  const supported = state.tryonConfig?.supported_categories || ['top', 'jacket', 'bottom', 'dress'];
+  const isSupported = supported.includes(cat);
+
+  switch (cat) {
+    case 'top':
+    case 'jacket':
+      return {
+        badge: 'Top / Layer',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: 'Full neural garment drape and deformation supported on torso & arms.'
+      };
+    case 'bottom':
+      return {
+        badge: 'Bottoms',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: 'Full neural garment drape and deformation supported on legs & waist.'
+      };
+    case 'dress':
+      return {
+        badge: 'One-Piece / Dress',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: 'Full-body one-piece neural garment drape supported.'
+      };
+    case 'shoes':
+      return {
+        badge: 'Footwear',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: isSupported 
+          ? 'Neural fitting requires model feet area to be clearly visible.'
+          : 'Virtual try-on for footwear is not supported by IDM-VTON neural diffusion. Model specializes in apparel garments.'
+      };
+    case 'bag':
+    case 'necklace':
+    case 'accessory':
+      return {
+        badge: 'Accessory',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: isSupported 
+          ? 'Provider fits accessories via neural coordinate positioning.'
+          : 'Virtual try-on for bags and accessories is not supported by IDM-VTON neural diffusion.'
+      };
+    default:
+      return {
+        badge: category || 'Garment',
+        status: isSupported ? 'supported' : 'unsupported',
+        note: isSupported ? 'Neural drape fitting supported.' : 'Category is not supported for virtual fitting.'
+      };
+  }
+}
 
 function openDressingRoomStudio() {
-  if (state.recommendations.length > 0) {
-    openInteractiveTryOn(state.recommendations[0]);
-  } else if (state.wardrobe.length > 0) {
-    const topItem = state.wardrobe.find(i => ['top', 'jacket', 'dress'].includes(i.category)) || state.wardrobe[0];
-    const bottomItem = state.wardrobe.find(i => i.category === 'bottom') || state.wardrobe[1] || topItem;
-    const shoesItem = state.wardrobe.find(i => i.category === 'shoes') || state.wardrobe[2] || topItem;
-    const bagItem = state.wardrobe.find(i => i.category === 'bag' || i.category === 'necklace') || state.wardrobe[3];
-    openInteractiveTryOn({
-      title: 'Digital Wardrobe Fitting',
-      occasion: 'Personal Fitting',
-      outfit: {
-        title: 'Custom Closet Ensemble',
-        items: [topItem, bottomItem, shoesItem, bagItem].filter(Boolean)
-      }
-    });
+  if (state.products.length > 0) {
+    openProductTryOn(state.products[0]);
   } else {
-    showToast('Add wardrobe pieces or generate recommendations to try on outfits!');
+    showToast('Add wardrobe pieces or load catalogue items to try on outfits!');
   }
 }
 
-function setTryonMode(mode) {
-  state.tryonMode = mode;
-  if (state.activeTryOn) {
-    openInteractiveTryOn(state.activeTryOn.rec);
+function switchTryOnProduct(productId) {
+  if (!productId) return;
+  const product = state.products.find((entry) => entry.id === productId);
+  if (product) {
+    state.tryonProduct = product;
+    state.tryonResultImage = null;
+    state.tryonError = null;
+    renderVirtualTryOnModal();
   }
 }
 
-function toggleTryonLayer(layer) {
-  if (!state.tryonLayers) {
-    state.tryonLayers = { top: true, bottom: true, shoes: true, bag: true, necklace: true };
-  }
-  state.tryonLayers[layer] = !state.tryonLayers[layer];
-  if (state.activeTryOn) {
-    openInteractiveTryOn(state.activeTryOn.rec);
-  }
+function setTryonModelSource(source) {
+  state.tryonModelSource = source;
+  renderVirtualTryOnModal();
+}
+
+function selectDefaultModel(index) {
+  state.tryonSelectedModelIndex = index;
+  state.tryonModelSource = 'default';
+  renderVirtualTryOnModal();
 }
 
 function handleUserPhotoUploadForTryon(input) {
   if (input.files && input.files[0]) {
     const file = input.files[0];
-    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type) || file.size > 10 * 1024 * 1024) {
-      showToast('Choose a JPEG, PNG, or WebP photo under 10 MB.', 'error');
+    if (!['image/jpeg', 'image/png', 'image/webp'].includes(file.type)) {
+      showToast('Please select a JPEG, PNG, or WebP photo.', 'error');
+      input.value = '';
+      return;
+    }
+    if (file.size > 20 * 1024 * 1024) {
+      showToast('Image file must be under 20 MB.', 'error');
       input.value = '';
       return;
     }
     const reader = new FileReader();
     reader.onload = function(e) {
-      state.userTryonPhoto = e.target.result;
-      state.tryonMode = 'photo';
-      showToast('Photo loaded for a local reference only; it is not stored or fitted.');
-      if (state.activeTryOn) {
-        openInteractiveTryOn(state.activeTryOn.rec);
-      }
+      const img = new Image();
+      img.onload = function() {
+        const maxDim = 1280;
+        let w = img.width;
+        let h = img.height;
+        if (w > maxDim || h > maxDim) {
+          if (w > h) {
+            h = Math.round((h * maxDim) / w);
+            w = maxDim;
+          } else {
+            w = Math.round((w * maxDim) / h);
+            h = maxDim;
+          }
+        }
+        const canvas = document.createElement('canvas');
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        state.tryonUserPhoto = canvas.toDataURL('image/jpeg', 0.88);
+        state.tryonModelSource = 'upload';
+        showToast('Personal photo loaded and optimized for virtual try-on.');
+        renderVirtualTryOnModal();
+      };
+      img.src = e.target.result;
     };
     reader.readAsDataURL(file);
   }
 }
 
+function handleTryonConsentToggle(checked) {
+  state.tryonConsent = checked;
+  renderVirtualTryOnModal();
+}
+
+async function startTryonGeneration() {
+  if (state.tryonIsGenerating) {
+    return;
+  }
+  if (!state.user) {
+    showToast('Please sign in or register to use Virtual Try-On.', 'error');
+    return openLoginModal('login');
+  }
+  if (!state.tryonProduct) {
+    showToast('Please select a catalogue product to try on.', 'error');
+    return;
+  }
+  const categoryMeta = getCategoryTryOnNotes(state.tryonProduct.category);
+  if (categoryMeta.status === 'unsupported') {
+    showToast(`The category "${state.tryonProduct.category}" is not supported for virtual try-on.`, 'error');
+    return;
+  }
+  if (!state.tryonConsent) {
+    showToast('Please provide consent before generating virtual try-on.', 'error');
+    return;
+  }
+  const modelImage = state.tryonModelSource === 'upload' 
+    ? state.tryonUserPhoto 
+    : DEFAULT_MODELS[state.tryonSelectedModelIndex]?.url;
+
+  if (!modelImage) {
+    showToast('Please select or upload a model photo.', 'error');
+    return;
+  }
+
+  if (state.tryonPollingInterval) {
+    clearInterval(state.tryonPollingInterval);
+    state.tryonPollingInterval = null;
+  }
+
+  const providerName = state.tryonConfig?.provider === 'fashn' ? 'FASHN API' : 'IDM-VTON neural pipeline';
+  state.tryonIsGenerating = true;
+  state.tryonError = null;
+  state.tryonResultImage = null;
+  state.tryonStatusMessage = `Initiating AI virtual try-on with ${providerName}...`;
+  renderVirtualTryOnModal();
+
+  try {
+    const res = await api('/api/tryon/generate', {
+      method: 'POST',
+      cache: 'no-store',
+      body: JSON.stringify({
+        product_id: state.tryonProduct.id,
+        model_image: modelImage,
+        consent: true
+      })
+    });
+
+    const predictionId = res.prediction_id;
+    if (!predictionId) {
+      throw new Error('No prediction ID received from try-on service.');
+    }
+
+    state.tryonStatusMessage = 'Neural synthesis in progress (processing garment drape)...';
+    renderVirtualTryOnModal();
+
+    let attempts = 0;
+    const maxAttempts = 72; // 72 * 2.5s = 180 seconds (sensible overall timeout)
+    state.tryonPollingInterval = setInterval(async () => {
+      attempts++;
+      try {
+        const statusRes = await api(`/api/tryon/status/${encodeURIComponent(predictionId)}`, {
+          cache: 'no-store',
+          headers: {
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache'
+          }
+        });
+        if (statusRes.status === 'completed' && statusRes.output) {
+          clearInterval(state.tryonPollingInterval);
+          state.tryonPollingInterval = null;
+          state.tryonIsGenerating = false;
+          state.tryonResultImage = statusRes.output;
+          state.tryonStatusMessage = '';
+          showToast('Virtual try-on generated successfully!');
+          renderVirtualTryOnModal();
+        } else if (statusRes.status === 'failed') {
+          clearInterval(state.tryonPollingInterval);
+          state.tryonPollingInterval = null;
+          state.tryonIsGenerating = false;
+          state.tryonError = statusRes.error || 'Virtual try-on synthesis failed at provider.';
+          state.tryonStatusMessage = '';
+          renderVirtualTryOnModal();
+        } else {
+          const elapsed = statusRes.elapsed_seconds || Math.round(attempts * 2.5);
+          let phaseDesc = 'Connecting to Hugging Face ZeroGPU pipeline...';
+          if (statusRes.message) {
+            phaseDesc = statusRes.message;
+          } else if (elapsed > 10 && elapsed <= 35) {
+            phaseDesc = 'Remote ZeroGPU allocated. Running neural garment diffusion...';
+          } else if (elapsed > 35) {
+            phaseDesc = 'Finalizing garment deformation & neural drape...';
+          }
+          state.tryonStatusMessage = `${phaseDesc} (${elapsed}s)`;
+          renderVirtualTryOnModal();
+        }
+      } catch (pollErr) {
+        if (attempts >= maxAttempts) {
+          clearInterval(state.tryonPollingInterval);
+          state.tryonPollingInterval = null;
+          state.tryonIsGenerating = false;
+          state.tryonError = 'Try-on request timed out after 180 seconds. Please try again.';
+          state.tryonStatusMessage = '';
+          renderVirtualTryOnModal();
+        }
+      }
+
+      if (attempts >= maxAttempts && state.tryonPollingInterval) {
+        clearInterval(state.tryonPollingInterval);
+        state.tryonPollingInterval = null;
+        state.tryonIsGenerating = false;
+        state.tryonError = 'Try-on request timed out after 180 seconds. Please try again.';
+        state.tryonStatusMessage = '';
+        renderVirtualTryOnModal();
+      }
+    }, 2500);
+
+  } catch (err) {
+    if (state.tryonPollingInterval) {
+      clearInterval(state.tryonPollingInterval);
+      state.tryonPollingInterval = null;
+    }
+    state.tryonIsGenerating = false;
+    state.tryonError = err.message || 'Failed to initiate try-on generation.';
+    state.tryonStatusMessage = '';
+    renderVirtualTryOnModal();
+  }
+}
+
+function downloadTryonResult() {
+  if (!state.tryonResultImage) return;
+  const a = document.createElement('a');
+  a.href = state.tryonResultImage;
+  a.download = `stylemate-tryon-${state.tryonProduct?.name || 'result'}.png`;
+  a.target = '_blank';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function resetTryon() {
+  if (state.tryonPollingInterval) {
+    clearInterval(state.tryonPollingInterval);
+    state.tryonPollingInterval = null;
+  }
+  state.tryonIsGenerating = false;
+  state.tryonResultImage = null;
+  state.tryonError = null;
+  state.tryonStatusMessage = '';
+  renderVirtualTryOnModal();
+}
+
 function openInteractiveTryOn(rec) {
   const outfit = rec.outfit || {};
   const items = outfit.items || rec.items || [];
-  const skinToneKey = (state.profile?.skin_tone || state.profile?.skinTone || 'Medium').toLowerCase();
-  const skinColor = SKIN_TONE_MAP[skinToneKey] || '#d89b6f';
-  const bodyShape = state.profile?.body_type || state.profile?.bodyType || 'Hourglass';
+  const candidate = items.find(i => ['top', 'dress', 'jacket', 'bottom'].includes(i.category)) || items[0];
+  if (candidate) {
+    const fullProduct = state.products.find(p => p.id === candidate.id) || {
+      id: candidate.id,
+      name: candidate.title || candidate.name,
+      category: candidate.category || 'top',
+      image_url: candidate.imageUrl || candidate.image_url,
+      occasions: candidate.occasions || [rec.occasion].filter(Boolean)
+    };
+    openProductTryOn(fullProduct);
+  } else if (state.products.length > 0) {
+    openProductTryOn(state.products[0]);
+  } else {
+    showToast('No products available for Virtual Try-On.', 'error');
+  }
+}
 
-  // Find components of the outfit
-  const topItem = items.find(i => ['top', 'jacket', 'dress'].includes(i.category));
-  const bottomItem = items.find(i => i.category === 'bottom');
-  const shoesItem = items.find(i => i.category === 'shoes');
-  const bagItem = items.find(i => i.category === 'bag');
-  const necklaceItem = items.find(i => ['necklace', 'accessory'].includes(i.category));
+function renderVirtualTryOnModal() {
+  const product = state.tryonProduct;
+  if (!product) return;
 
-  state.activeTryOn = { rec, topItem, bottomItem, shoesItem, bagItem, necklaceItem };
-
-  const isDollMode = state.tryonMode !== 'photo';
-  const layers = state.tryonLayers || { top: true, bottom: true, shoes: true, bag: true, necklace: true };
+  const isSaved = state.favorites.some(f => f.id === product.id);
+  const categoryMeta = getCategoryTryOnNotes(product.category);
+  const isUploadMode = state.tryonModelSource === 'upload';
+  const selectedModel = DEFAULT_MODELS[state.tryonSelectedModelIndex] || DEFAULT_MODELS[0];
 
   state.modal = {
-    title: `🪞 Virtual Fitting Room — ${outfit.title || rec.title || 'Outfit'}`,
+    title: `🪞 Virtual Try-On Studio — ${escapeHtml(product.name)}`,
     content: `
-      <div class="preview-disclaimer">Preview only: the avatar places product imagery in approximate category areas. Uploaded-photo mode is a visual reference board, not realistic garment fitting or size prediction.</div>
-      <!-- Mode Toggle: Doll Model vs Upload My Photo -->
-      <div class="tryon-mode-toggle">
-        <button class="tryon-mode-btn ${isDollMode ? 'active' : ''}" onclick="setTryonMode('doll')">
-          🧍‍♀️ Fashion Doll / Avatar Model
-        </button>
-        <button class="tryon-mode-btn ${!isDollMode ? 'active' : ''}" onclick="setTryonMode('photo')">
-          📸 Photo reference (not fitted)
-        </button>
+      <!-- Provider & Architecture Info Banner -->
+      <div class="tryon-info-banner">
+        <span style="font-size:1.2rem;">✨</span>
+        <div>
+          <strong>Authentic Neural Garment Fitting:</strong> Powered by ${state.tryonConfig?.provider === 'fashn' ? 'FASHN AI' : 'IDM-VTON (ZeroGPU Neural Diffusion)'}. 
+          Selected catalogue garment and person images are sent to the backend for real neural diffusion synthesis.
+        </div>
       </div>
 
-      <div class="tryon-studio-container">
-        <!-- Fitting Stage Frame -->
-        <div class="mannequin-frame" id="tryonStage">
-          ${isDollMode ? `
-            <!-- DOLL MODEL STAGE -->
-            <div class="doll-silhouette">
-              <div class="doll-hair"></div>
-              <div class="doll-head" style="background:${skinColor};">
-                ${necklaceItem && layers.necklace ? `
-                  <div class="doll-necklace-slot" title="${necklaceItem.title || necklaceItem.name}">📿</div>
-                ` : ''}
-              </div>
+      <!-- Main Try-On Setup Area (Garment Panel + Person Panel) -->
+      <div class="tryon-input-panels">
+        <!-- Panel 1: Selected Catalogue Garment -->
+        <div class="tryon-panel active-panel">
+          <div class="tryon-panel-label">1. Selected Catalogue Garment</div>
+          <div class="tryon-panel-image-wrap">
+            <img src="${escapeHtml(product.image_url || product.imageUrl || '')}" alt="${escapeHtml(product.name)}" />
+          </div>
+          <div class="tryon-panel-name" title="${escapeHtml(product.name)}">${escapeHtml(product.name)}</div>
+          
+          <div style="margin-top:0.35rem;">
+            <span class="tryon-category-badge ${categoryMeta.status === 'supported' ? 'tryon-supported-badge' : 'tryon-unsupported-badge'}">
+              ${escapeHtml(categoryMeta.badge)}
+            </span>
+          </div>
 
-              <!-- Torso Garment (Top / Dress) -->
-              <div class="doll-torso" style="${layers.top && (topItem?.imageUrl || topItem?.image_url) ? `background-image:url('${topItem.imageUrl || topItem.image_url}');` : (layers.top ? `background-color:${topItem?.primaryColor || '#6366f1'};` : `background-color:${skinColor}; opacity:0.6;`)}">
-                <span>${layers.top ? (topItem?.title || topItem?.name || 'Top') : 'N/A'}</span>
-                
-                ${bagItem && layers.bag ? `
-                  <div class="doll-bag-slot" style="${bagItem.imageUrl || bagItem.image_url ? `background-image:url('${bagItem.imageUrl || bagItem.image_url}');` : `background:${bagItem.primaryColor || '#d97706'};`}" title="${bagItem.title || bagItem.name}"></div>
-                ` : ''}
-              </div>
+          <p style="font-size:0.75rem; color:var(--text-muted); margin:0.4rem 0 0.6rem; line-height:1.3;">
+            ${escapeHtml(categoryMeta.note)}
+          </p>
 
-              <!-- Legs Garment (Bottoms / Skirt) -->
-              <div class="doll-legs" style="${layers.bottom && (bottomItem?.imageUrl || bottomItem?.image_url) ? `background-image:url('${bottomItem.imageUrl || bottomItem.image_url}');` : (layers.bottom ? `background-color:${bottomItem?.primaryColor || '#1e293b'};` : `background-color:${skinColor}; opacity:0.6;`)}">
-                <span>${layers.bottom ? (bottomItem?.title || bottomItem?.name || 'Bottom') : 'N/A'}</span>
-              </div>
+          <div style="margin-top:auto; display:flex; flex-direction:column; gap:0.4rem;">
+            <select class="form-control tryon-product-select" onchange="switchTryOnProduct(this.value)">
+              <option value="">-- Switch catalogue garment --</option>
+              ${state.products.map(p => `
+                <option value="${escapeHtml(p.id)}" ${p.id === product.id ? 'selected' : ''}>
+                  ${escapeHtml(p.name)} (${escapeHtml(p.category)})
+                </option>
+              `).join('')}
+            </select>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:0.25rem;">
+              <span style="font-size:0.75rem; color:var(--text-muted);">
+                ${product.image_source ? `<a href="${escapeHtml(product.image_source)}" target="_blank" rel="noopener noreferrer" style="color:var(--accent-purple);">Source license ↗</a>` : 'Catalogue item'}
+              </span>
+              <button class="btn btn-secondary btn-sm" style="padding:0.25rem 0.6rem; font-size:0.75rem;" onclick="toggleFavorite('${escapeHtml(product.id)}')">
+                ${isSaved ? '★ Saved' : '☆ Save favorite'}
+              </button>
+            </div>
+          </div>
+        </div>
 
-              <!-- Footwear -->
-              <div class="doll-feet" style="${layers.shoes && (shoesItem?.imageUrl || shoesItem?.image_url) ? `background-image:url('${shoesItem.imageUrl || shoesItem.image_url}');` : (layers.shoes ? `background-color:${shoesItem?.primaryColor || '#0f172a'};` : `background-color:${skinColor};`)}">
-                <span>${layers.shoes ? (shoesItem?.title || shoesItem?.name || 'Shoes') : 'N/A'}</span>
-              </div>
+        <!-- Panel 2: Target Model / Person Image -->
+        <div class="tryon-panel active-panel">
+          <div class="tryon-panel-label">2. Target Person Model</div>
+
+          <div style="display:flex; gap:0.4rem; justify-content:center; margin-bottom:0.75rem;">
+            <button class="btn btn-sm ${!isUploadMode ? 'btn-primary' : 'btn-secondary'}" onclick="setTryonModelSource('default')">
+              Default Models
+            </button>
+            <button class="btn btn-sm ${isUploadMode ? 'btn-primary' : 'btn-secondary'}" onclick="setTryonModelSource('upload')">
+              Upload My Photo
+            </button>
+          </div>
+
+          ${!isUploadMode ? `
+            <div class="tryon-panel-image-wrap">
+              <img src="${escapeHtml(selectedModel.url)}" alt="${escapeHtml(selectedModel.name)}" />
+            </div>
+            <div class="tryon-panel-name">${escapeHtml(selectedModel.name)}</div>
+            <p style="font-size:0.75rem; color:var(--text-muted); margin:0.3rem 0 0.5rem;">
+              ${escapeHtml(selectedModel.description)}
+            </p>
+
+            <div class="tryon-model-selector">
+              ${DEFAULT_MODELS.map((m, idx) => `
+                <div class="tryon-model-option ${idx === state.tryonSelectedModelIndex ? 'selected' : ''}" 
+                     onclick="selectDefaultModel(${idx})" title="${escapeHtml(m.name)}">
+                  <img src="${escapeHtml(m.thumbnail)}" alt="${escapeHtml(m.name)}" />
+                </div>
+              `).join('')}
             </div>
           ` : `
-            <!-- USER PHOTO FITTING STAGE -->
-            ${state.userTryonPhoto ? `
-              <div class="user-photo-stage">
-                <img src="${state.userTryonPhoto}" class="user-photo-img" alt="Your Photo" />
-                
-                <!-- Overlayed Fitted Garments onto User Photo -->
-                ${topItem && layers.top ? `
-                  <div class="garment-overlay-card" style="top:22%; left:20%; width:130px; height:95px;">
-                    <span class="garment-pin-badge">Top / Dress</span>
-                    <img src="${topItem.imageUrl || topItem.image_url || 'https://images.unsplash.com/photo-1564257631407-4deb1f99d992?w=400'}" alt="${topItem.title || topItem.name}" />
-                  </div>
-                ` : ''}
-
-                ${bottomItem && layers.bottom ? `
-                  <div class="garment-overlay-card" style="top:47%; left:22%; width:120px; height:105px;">
-                    <span class="garment-pin-badge">Bottom</span>
-                    <img src="${bottomItem.imageUrl || bottomItem.image_url || 'https://images.unsplash.com/photo-1541099649105-f69ad21f3246?w=400'}" alt="${bottomItem.title || bottomItem.name}" />
-                  </div>
-                ` : ''}
-
-                ${shoesItem && layers.shoes ? `
-                  <div class="garment-overlay-card" style="bottom:15px; left:25%; width:100px; height:45px;">
-                    <span class="garment-pin-badge">Shoes</span>
-                    <img src="${shoesItem.imageUrl || shoesItem.image_url || 'https://images.unsplash.com/photo-1595950653106-6c9ebd614d3a?w=400'}" alt="${shoesItem.title || shoesItem.name}" />
-                  </div>
-                ` : ''}
-
-                ${bagItem && layers.bag ? `
-                  <div class="garment-overlay-card" style="top:35%; right:15px; width:75px; height:75px;">
-                    <span class="garment-pin-badge">Bag</span>
-                    <img src="${bagItem.imageUrl || bagItem.image_url || 'https://images.unsplash.com/photo-1548036328-c9fa89d128fa?w=400'}" alt="${bagItem.title || bagItem.name}" />
-                  </div>
-                ` : ''}
+            ${state.tryonUserPhoto ? `
+              <div class="tryon-panel-image-wrap">
+                <img src="${state.tryonUserPhoto}" alt="Your uploaded photo" />
+              </div>
+              <div class="tryon-panel-name">Your Uploaded Photo</div>
+              <p style="font-size:0.75rem; color:#34d399; margin:0.3rem 0 0.5rem; font-weight:600;">
+                ✓ Photo loaded and ready for fitting
+              </p>
+              <div style="margin-top:auto;">
+                <input type="file" id="tryonUserPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleUserPhotoUploadForTryon(this)" />
+                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('tryonUserPhotoInput').click()">
+                  Choose Different Photo
+                </button>
               </div>
             ` : `
-              <!-- Prompt to upload photo -->
-              <div style="text-align:center; padding:2rem 1.5rem; cursor:pointer;" onclick="document.getElementById('tryonPhotoInput').click()">
-                <input type="file" id="tryonPhotoInput" accept="image/*" style="display:none;" onchange="handleUserPhotoUploadForTryon(this)" />
-                <div style="font-size:3.5rem; margin-bottom:1rem;">📸</div>
-                <h4 style="font-size:1.15rem; font-weight:700; margin-bottom:0.5rem;">Upload Your Full-Body Photo / Selfie</h4>
-                <p style="color:var(--text-muted); font-size:0.85rem; max-width:280px; margin:0 auto 1.25rem;">
-                  Your photo is displayed with product-reference thumbnails. Garments are not fitted or realistically simulated.
+              <div class="tryon-upload-area" onclick="document.getElementById('tryonUserPhotoInput').click()">
+                <input type="file" id="tryonUserPhotoInput" accept="image/jpeg,image/png,image/webp" style="display:none;" onchange="handleUserPhotoUploadForTryon(this)" />
+                <span class="tryon-upload-icon">📸</span>
+                <div style="font-weight:700; font-size:0.95rem;">Upload Full-Body Photo</div>
+                <p style="font-size:0.78rem; color:var(--text-muted); max-width:240px; margin:0;">
+                  Standing portrait with clear posture yields the highest quality neural drape. JPEG, PNG, or WebP up to 10 MB.
                 </p>
-                <button type="button" class="btn btn-primary btn-sm">Select Your Photo</button>
+                <button type="button" class="btn btn-secondary btn-sm" style="margin-top:0.5rem;">
+                  Select Image File
+                </button>
               </div>
             `}
           `}
         </div>
+      </div>
 
-        <!-- Controls, Layer Toggles & Fit Diagnostics -->
-        <div>
-          <div class="form-group">
-            <label class="form-label">Switch selected catalogue item</label>
-            <select class="form-control" onchange="switchTryOnProduct(this.value)">
-              <option value="">Choose a product</option>
-              ${state.products.map((product) => `<option value="${escapeHtml(product.id)}" ${items.some((item) => item.id === product.id) ? 'selected' : ''}>${escapeHtml(product.name)} (${escapeHtml(product.category)})</option>`).join('')}
-            </select>
+      <!-- Consent & Generation Controls -->
+      <div class="tryon-generate-section">
+        <div class="tryon-consent-row">
+          <input type="checkbox" id="tryonConsentCheck" ${state.tryonConsent ? 'checked' : ''} onchange="handleTryonConsentToggle(this.checked)" />
+          <label for="tryonConsentCheck">
+            I consent to sending the selected model image and garment photo to the neural fitting service for AI try-on generation. StyleMate does not retain personal photos.
+          </label>
+        </div>
+
+        ${categoryMeta.status === 'unsupported' ? `
+          <div style="background:rgba(239, 68, 68, 0.12); border:1px solid rgba(239, 68, 68, 0.35); border-radius:8px; padding:0.6rem 0.8rem; margin-top:0.75rem; font-size:0.8rem; color:#f87171; text-align:left;">
+            ⚠️ <strong>Category Not Supported:</strong> Virtual try-on is limited to clothing apparel (tops, jackets, bottoms, dresses). Footwear and accessories are not supported by the neural fitting model.
           </div>
-          <button class="btn btn-danger btn-sm" style="margin-bottom:1rem;" onclick="removeTryOnProduct()">Remove selected item</button>
-          ${!isDollMode && state.userTryonPhoto ? `
-            <div style="margin-bottom:1rem; display:flex; justify-content:space-between; align-items:center;">
-              <span style="font-size:0.85rem; color:#34d399; font-weight:700;">Photo loaded for reference only</span>
-              <button class="btn btn-secondary btn-sm" onclick="document.getElementById('tryonPhotoInput2').click()">Change Photo</button>
-              <input type="file" id="tryonPhotoInput2" accept="image/*" style="display:none;" onchange="handleUserPhotoUploadForTryon(this)" />
-            </div>
-          ` : ''}
+        ` : ''}
 
-          <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:0.6rem;">Clothing Layer Toggles</h3>
-          <div style="display:flex; flex-direction:column; gap:0.4rem; margin-bottom:1.25rem;">
-            ${topItem ? `
-              <div class="tryon-layer-toggle-row">
-                <span>👚 <strong>Top / Dress:</strong> ${topItem.title || topItem.name}</span>
-                <input type="checkbox" ${layers.top ? 'checked' : ''} onchange="toggleTryonLayer('top')" />
-              </div>
-            ` : ''}
-            ${bottomItem ? `
-              <div class="tryon-layer-toggle-row">
-                <span>👖 <strong>Bottom:</strong> ${bottomItem.title || bottomItem.name}</span>
-                <input type="checkbox" ${layers.bottom ? 'checked' : ''} onchange="toggleTryonLayer('bottom')" />
-              </div>
-            ` : ''}
-            ${shoesItem ? `
-              <div class="tryon-layer-toggle-row">
-                <span>👟 <strong>Footwear:</strong> ${shoesItem.title || shoesItem.name}</span>
-                <input type="checkbox" ${layers.shoes ? 'checked' : ''} onchange="toggleTryonLayer('shoes')" />
-              </div>
-            ` : ''}
-            ${bagItem ? `
-              <div class="tryon-layer-toggle-row">
-                <span>👜 <strong>Bag:</strong> ${bagItem.title || bagItem.name}</span>
-                <input type="checkbox" ${layers.bag ? 'checked' : ''} onchange="toggleTryonLayer('bag')" />
-              </div>
-            ` : ''}
-            ${necklaceItem ? `
-              <div class="tryon-layer-toggle-row">
-                <span>📿 <strong>Jewelry:</strong> ${necklaceItem.title || necklaceItem.name}</span>
-                <input type="checkbox" ${layers.necklace ? 'checked' : ''} onchange="toggleTryonLayer('necklace')" />
-              </div>
-            ` : ''}
+        <div style="margin-top:1rem;">
+          <button class="tryon-generate-btn" 
+                  ${state.tryonIsGenerating || !state.tryonConsent || (isUploadMode && !state.tryonUserPhoto) || categoryMeta.status === 'unsupported' ? 'disabled' : ''}
+                  onclick="startTryonGeneration()">
+            ${state.tryonIsGenerating ? '⏳ Generating AI Try-On...' : '✨ Generate Try-On'}
+          </button>
+        </div>
+      </div>
+
+      <!-- Result Stage / Processing State / Error Display -->
+      <div class="tryon-result-area" id="tryonResultStage">
+        ${state.tryonIsGenerating ? `
+          <div class="tryon-spinner"></div>
+          <div style="font-weight:700; font-size:1.1rem; color:var(--text-main);">Neural Try-On In Progress</div>
+          <div class="tryon-status-text">${escapeHtml(state.tryonStatusMessage || 'Processing garment fitting...')}</div>
+          <p style="font-size:0.8rem; color:var(--text-muted); max-width:380px; text-align:center; margin-top:0.5rem;">
+            Garment deformation and lighting re-synthesis typically take 15–30 seconds.
+          </p>
+        ` : state.tryonResultImage ? `
+          <div style="font-weight:700; font-size:1.15rem; color:#34d399; margin-bottom:0.75rem;">
+            ✓ Real AI-Generated Fitting Result
           </div>
-
-          <h3 style="font-size:1.1rem; font-weight:700; margin-bottom:0.6rem;">Preview details</h3>
-          <div class="tryon-specs-list">
-            <div><strong>Preview capability:</strong> <span>Avatar placement only; not a fit or size prediction.</span></div>
-            <div><strong>Preference input:</strong> <span>Skin tone does not restrict recommended clothing.</span></div>
-            <div><strong>Occasion:</strong> <span>${escapeHtml(rec.occasion || 'Personal preview')}</span></div>
-          </div>
-
-          <div style="margin-top:1.25rem; display:flex; flex-direction:column; gap:0.6rem;">
-            <button class="btn btn-secondary" style="width:100%;" onclick="selectOccasion('${state.selectedOccasion || 'casual'}')">
-              Browse store catalogue
+          <img src="${escapeHtml(state.tryonResultImage)}" alt="AI Virtual Try-On Result" />
+          <div class="tryon-result-actions">
+            <button class="btn btn-primary" onclick="downloadTryonResult()">
+              ⬇ Download Result
+            </button>
+            <button class="btn btn-secondary" onclick="resetTryon()">
+              🔄 Try Another Piece
+            </button>
+            <button class="btn btn-secondary" onclick="toggleFavorite('${escapeHtml(product.id)}')">
+              ${isSaved ? '★ Saved to Favorites' : '☆ Save Garment'}
             </button>
           </div>
-        </div>
+        ` : state.tryonError ? `
+          <div style="font-size:2.5rem; margin-bottom:0.5rem;">⚠️</div>
+          <div style="font-weight:700; font-size:1.05rem; color:#f43f5e;">Generation Not Completed</div>
+          <div class="tryon-error-text" style="max-width:440px; text-align:center; line-height:1.4;">
+            ${escapeHtml(state.tryonError)}
+          </div>
+          <p style="font-size:0.82rem; color:var(--text-muted); max-width:440px; text-align:center; margin-top:0.75rem;">
+            StyleMate uses free hosted ZeroGPU inference (IDM-VTON) by default. If the public queue is busy or times out, please wait a moment and retry.
+          </p>
+          <div style="margin-top:1rem;">
+            <button class="btn btn-secondary btn-sm" onclick="resetTryon()">Dismiss & Retry</button>
+          </div>
+        ` : `
+          <div class="tryon-result-placeholder">
+            <div class="icon">🪞</div>
+            <div style="font-weight:700; font-size:1.1rem; color:var(--text-main); margin-bottom:0.35rem;">
+              Ready for Garment Fitting
+            </div>
+            <p style="font-size:0.85rem; max-width:360px; margin:0 auto;">
+              Select a model or upload your photograph, check the consent box, and click <strong>Generate Try-On</strong> to run the neural garment-to-person synthesis.
+            </p>
+          </div>
+        `}
       </div>
     `
   };
@@ -1272,32 +1624,14 @@ function openInteractiveTryOn(rec) {
 }
 
 function openSingleItemTryOn(item) {
-  state.selectedTryOnItemId = item.id;
-  openInteractiveTryOn({
-    title: item.title || item.name,
-    occasion: 'Single Item Fitting',
-    outfit: {
-      title: item.title || item.name,
-      items: [item]
-    }
-  });
-}
-
-function switchTryOnProduct(productId) {
-  if (!productId) return;
-  const product = state.products.find((entry) => entry.id === productId);
-  if (product) openProductTryOn(product);
-}
-
-function removeTryOnProduct() {
-  if (!state.activeTryOn) return;
-  const rec = state.activeTryOn.rec;
-  const items = rec.outfit?.items || rec.items || [];
-  const selectedId = state.selectedTryOnItemId || items[0]?.id;
-  const remaining = items.filter((item) => item.id !== selectedId);
-  state.selectedTryOnItemId = null;
-  const updated = { ...rec, outfit: { ...(rec.outfit || {}), items: remaining } };
-  openInteractiveTryOn(updated);
+  const fullProduct = state.products.find(p => p.id === item.id) || {
+    id: item.id,
+    name: item.title || item.name,
+    category: item.category || 'top',
+    image_url: item.imageUrl || item.image_url,
+    occasions: item.occasions || []
+  };
+  openProductTryOn(fullProduct);
 }
 
 // ─── SAVED FAVORITES ───────────────────────────────────────────────────────

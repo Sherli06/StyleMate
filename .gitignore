@@ -6,7 +6,10 @@ package-lock.json
 # Environment variables & secrets
 .env
 .env.*
+api/.env
+api/.env.*
 !.env.example
+!api/.env.example
 
 # Local SQLite databases
 *.sqlite

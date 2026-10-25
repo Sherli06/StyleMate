@@ -4,6 +4,10 @@ const path = require('path');
 const sourceDir = path.join(__dirname, 'src');
 const outputDir = path.join(__dirname, 'build');
 
+if (!fs.existsSync(outputDir)) {
+  fs.mkdirSync(outputDir, { recursive: true });
+}
+
 for (const file of ['index.html', 'app.js', 'styles.css']) {
   const sourcePath = path.join(sourceDir, file);
   if (!fs.existsSync(sourcePath)) {

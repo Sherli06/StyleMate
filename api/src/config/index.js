@@ -20,5 +20,14 @@ module.exports = {
   upload: {
     dir: path.resolve(__dirname, '../../uploads'),
     maxSizeBytes: (parseInt(process.env.MAX_FILE_SIZE_MB, 10) || 10) * 1024 * 1024
-  }
+  },
+  tryon: {
+    provider: process.env.TRYON_PROVIDER || 'idm-vton', // 'idm-vton' (free) or 'fashn' (paid)
+    space: process.env.IDM_VTON_SPACE || 'yisol/IDM-VTON',
+    hfToken: process.env.HF_TOKEN || '',
+  },
+  fashn: {
+    apiKey: process.env.FASHN_API_KEY || '',
+    baseUrl: process.env.FASHN_API_URL || 'https://api.fashn.ai/v1',
+  },
 };
