@@ -490,13 +490,24 @@ function renderOccasionChoices() {
 
 function renderShopView() {
   const categoryNames = [
-    ['all', 'All'], ['top', 'Tops'], ['bottom', 'Bottoms'], ['dress', 'Dresses'],
-    ['shoes', 'Shoes'], ['bag', 'Bags'], ['necklace', 'Jewelry'], ['accessory', 'Accessories'], ['jacket', 'Jackets']
+    ['all', '✨ All Wearable Clothes'],
+    ['dress', '👗 Dresses & Gowns'],
+    ['top', '👕 Tops & Shirts'],
+    ['jacket', '🧥 Jackets & Outerwear'],
+    ['bottom', '👖 Bottoms & Pants'],
+    ['shoes', '👟 Footwear'],
+    ['bag', '👜 Bags'],
+    ['necklace', '📿 Jewelry'],
+    ['accessory', '✨ Accessories']
   ];
   return `
     <section>
-      <h1 class="page-title">Explore <span class="gradient-text">Collections</span></h1>
-      <p class="catalog-sample-note">Style inspiration collections. Use both filters together; every category and occasion has at least five items.</p>
+      <div style="margin-bottom:1.5rem;">
+        <h1 class="page-title">Try-On <span class="gradient-text">Studio Collections</span></h1>
+        <p class="catalog-sample-note" style="margin-bottom:0.75rem;">
+          Select any real wearable dress, shirt, jacket, or bottom to try on yourself or our studio models with neural diffusion.
+        </p>
+      </div>
       <div class="occasion-grid">
         <button class="occasion-card ${!state.selectedOccasion || state.selectedOccasion === 'all' ? 'selected' : ''}" onclick="selectOccasion('all')">
           <div style="font-size:2rem;display:flex;align-items:center;justify-content:center;height:90px;background:var(--bg-glass);border-radius:12px;">✨</div>
@@ -524,16 +535,35 @@ function renderProductCard(product) {
   const imageUrl = escapeHtml(product.image_url || '');
   const name = escapeHtml(product.name || '');
   const occasions = (product.occasions || []).map(escapeHtml).join(' · ');
+  const isWearable = ['top', 'bottom', 'dress', 'jacket'].includes((product.category || '').toLowerCase());
+
   return `
     <article class="catalog-card">
-      <div class="catalog-image"><img src="${imageUrl}" alt="${name}" loading="lazy" onerror="this.alt='Image unavailable';this.style.opacity='.25'" /></div>
+      <div class="catalog-image">
+        <img src="${imageUrl}" alt="${name}" loading="lazy" onerror="this.alt='Image unavailable';this.style.opacity='.25'" />
+        ${isWearable ? `
+          <div style="position:absolute; top:10px; right:10px; background:rgba(253,250,246,0.92); backdrop-filter:blur(8px); padding:0.25rem 0.65rem; border-radius:9999px; font-size:0.68rem; font-weight:700; color:var(--primary); border:1px solid var(--border); box-shadow:var(--shadow-sm);">
+            ✨ Try-On Ready
+          </div>
+        ` : ''}
+      </div>
       <div class="catalog-details">
         <div class="catalog-category">${CATEGORY_ICONS[product.category] || ''} ${escapeHtml(product.category)}</div>
         <h3>${name}</h3>
         <p class="catalog-tags">${occasions}</p>
         <div class="catalog-actions">
-          <button class="btn btn-secondary btn-sm" onclick="openProductTryOn(${escapeJson(product)})">🪞 See Live / Try On</button>
-          <button class="btn btn-primary btn-sm" onclick="toggleFavorite('${escapeHtml(product.id)}')">${isFavorite ? '♥ Saved' : '♡ Save favorite'}</button>
+          ${isWearable ? `
+            <button class="btn btn-primary btn-sm" onclick="openProductTryOn(${escapeJson(product)})">
+              🪞 Try-On with AI
+            </button>
+          ` : `
+            <button class="btn btn-secondary btn-sm" onclick="showToast('This item is a styling piece. Virtual try-on fits dresses, tops, bottoms & jackets.')" style="opacity:0.8;">
+              Styling Accessory
+            </button>
+          `}
+          <button class="btn btn-secondary btn-sm" onclick="toggleFavorite('${escapeHtml(product.id)}')">
+            ${isFavorite ? '♥ Saved' : '♡ Save'}
+          </button>
         </div>
       </div>
     </article>
@@ -1597,10 +1627,10 @@ function renderVirtualTryOnModal() {
 
           <div style="margin-top:auto; display:flex; flex-direction:column; gap:0.4rem;">
             <select class="form-control tryon-product-select" onchange="switchTryOnProduct(this.value)">
-              <option value="">-- Switch catalogue garment --</option>
-              ${state.products.map(p => `
+              <option value="">-- Switch wearable garment --</option>
+              ${state.products.filter(p => ['top', 'jacket', 'bottom', 'dress'].includes((p.category || '').toLowerCase())).map(p => `
                 <option value="${escapeHtml(p.id)}" ${p.id === product.id ? 'selected' : ''}>
-                  ${escapeHtml(p.name)} (${escapeHtml(p.category)})
+                  ${CATEGORY_ICONS[p.category] || ''} ${escapeHtml(p.name)} (${escapeHtml(p.category)})
                 </option>
               `).join('')}
             </select>
