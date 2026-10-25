@@ -237,9 +237,99 @@ async function submitAdminProduct(event) {
   }
 }
 
+// ─── FULL-SCREEN / BELOW-NAVBAR VIRTUAL TRY-ON LOADER ──────────────────────
+function renderTryonFullscreenLoader() {
+  const product = state.tryonProduct || {};
+  const isUploadMode = state.tryonModelSource === 'upload';
+  const selectedModel = DEFAULT_MODELS[state.tryonSelectedModelIndex] || DEFAULT_MODELS[0];
+  const modelUrl = isUploadMode ? state.tryonUserPhoto : (selectedModel?.url || '');
+  const modelName = isUploadMode ? 'Your Uploaded Photo' : (selectedModel?.name || 'Selected Model');
+
+  return `
+    <div class="tryon-fullscreen-loader">
+      <div class="tryon-loader-card">
+        <div class="hero-tag" style="margin-bottom:0.4rem;">Neural Fitting Studio</div>
+        <h1 style="font-family:var(--font-display); font-size:2.2rem; font-weight:600; margin-bottom:0.4rem; color:var(--text-main);">
+          Fitting Garment to Model
+        </h1>
+        <p style="color:var(--text-muted); font-size:0.92rem; max-width:480px; line-height:1.5;">
+          Calculating fabric physics, natural drape, and body alignment with IDM-VTON ZeroGPU.
+        </p>
+
+        <div class="tryon-loader-showcase">
+          <div class="tryon-loader-item">
+            <span class="tryon-loader-item-label">Garment</span>
+            <img src="${escapeHtml(product.image_url || product.imageUrl || '')}" alt="${escapeHtml(product.name || 'Garment')}" class="tryon-loader-item-img" />
+            <span class="tryon-loader-item-name" title="${escapeHtml(product.name || '')}">${escapeHtml(product.name || 'Catalogue Garment')}</span>
+          </div>
+
+          <div class="tryon-loader-bridge">
+            <div class="tryon-loader-pulse-ring">
+              <span>✨</span>
+            </div>
+            <span style="font-size:0.7rem; text-transform:uppercase; letter-spacing:0.14em; color:var(--primary); font-weight:700;">Fitting</span>
+          </div>
+
+          <div class="tryon-loader-item">
+            <span class="tryon-loader-item-label">Target Person</span>
+            <img src="${escapeHtml(modelUrl)}" alt="${escapeHtml(modelName)}" class="tryon-loader-item-img" />
+            <span class="tryon-loader-item-name" title="${escapeHtml(modelName)}">${escapeHtml(modelName)}</span>
+          </div>
+        </div>
+
+        <div class="tryon-progress-track">
+          <div id="tryon-loader-fill" class="tryon-progress-fill" style="width: 14%;"></div>
+        </div>
+
+        <p id="tryon-loader-status" class="tryon-loader-status">${escapeHtml(state.tryonStatusMessage || 'Connecting to Hugging Face ZeroGPU pipeline...')}</p>
+        <p id="tryon-loader-timer" class="tryon-loader-timer">Elapsed: 0s • ZeroGPU inference in progress</p>
+
+        <div class="tryon-loader-hint">
+          💡 IDM-VTON diffusion performs realistic fabric warping and shadow synthesis. Expected time: 35–55 seconds.
+        </div>
+
+        <button class="btn btn-secondary btn-sm" onclick="cancelTryonGeneration()" style="margin-top:1.5rem;">
+          ✕ Cancel Try-On
+        </button>
+      </div>
+    </div>
+  `;
+}
+
+function updateTryonLoadingStatus(phaseDesc, elapsed) {
+  const statusEl = document.getElementById('tryon-loader-status');
+  const timerEl = document.getElementById('tryon-loader-timer');
+  const fillEl = document.getElementById('tryon-loader-fill');
+  if (statusEl) statusEl.textContent = phaseDesc;
+  if (timerEl) timerEl.textContent = `Elapsed: ${elapsed}s • ZeroGPU inference in progress`;
+  if (fillEl) {
+    const pct = Math.min(94, Math.max(14, Math.round((elapsed / 48) * 100)));
+    fillEl.style.width = `${pct}%`;
+  }
+}
+
+function cancelTryonGeneration() {
+  if (state.tryonPollingInterval) {
+    clearInterval(state.tryonPollingInterval);
+    state.tryonPollingInterval = null;
+  }
+  state.tryonIsGenerating = false;
+  state.tryonStatusMessage = '';
+  showToast('Virtual try-on cancelled.');
+  renderVirtualTryOnModal();
+  render();
+}
+
 // ─── RENDER MASTER ──────────────────────────────────────────────────────────
 function render() {
   const appEl = document.getElementById('app');
+  if (state.tryonIsGenerating) {
+    appEl.innerHTML = `
+      ${renderNavbar()}
+      ${renderTryonFullscreenLoader()}
+    `;
+    return;
+  }
   appEl.innerHTML = `
     ${renderNavbar()}
     <main class="main-content">
@@ -254,8 +344,10 @@ function renderNavbar() {
     <nav class="navbar">
       <div class="nav-brand" onclick="navigateTo('home')">
         <div class="brand-icon">✨</div>
-        <span class="brand-name">StyleMate</span>
-        <span class="brand-badge">Personal style</span>
+        <div style="display:flex; flex-direction:column; line-height:1.15;">
+          <span class="brand-name">StyleMate</span>
+          <span style="font-size:0.62rem; text-transform:uppercase; letter-spacing:0.26em; color:var(--primary); font-weight:700;">AI Stylist</span>
+        </div>
       </div>
 
       <div class="nav-links">
@@ -314,35 +406,68 @@ function renderContent() {
 function renderHero() {
   return `
     <section class="hero">
-      <div class="hero-tag">✨ Occasion-based style ideas</div>
-      <h1 class="hero-title">Explore your style with <span class="gradient-text">StyleMate</span></h1>
-      <p class="hero-desc">
-        StyleMate keeps your personal wardrobe private, lets you browse sample products by occasion, and ranks wardrobe combinations from preferences you choose.
-      </p>
-      <div class="hero-actions">
-        <button class="btn btn-primary" onclick="openLoginModal('register')">Create your account</button>
-        <button class="btn btn-secondary" onclick="openLoginModal('login')">Sign in</button>
+      <div class="hero-grid-2col">
+        <div>
+          <div class="hero-tag">StyleMate</div>
+          <h1 class="hero-title">Your outfit,<br/><span class="gradient-text">already decided.</span></h1>
+          <p class="hero-desc">
+            A personal AI stylist that reads your body, your colours, your closet and today's weather — then hands you a complete look for whatever the day holds.
+          </p>
+          <div class="hero-actions">
+            <button class="btn btn-primary" onclick="openLoginModal('register')">Get started</button>
+            <button class="btn btn-secondary" onclick="openLoginModal('login')">I already have an account</button>
+          </div>
+        </div>
+        <div class="hero-banner-wrap">
+          <img 
+            src="https://images.unsplash.com/photo-1490481651871-ab68de25d43d?auto=format&fit=crop&w=1280&q=80" 
+            alt="Flat-lay of a styled outfit: linen shirt, tailored trousers, loafers and curated accessories" 
+            class="hero-banner-img" 
+            loading="eager"
+          />
+        </div>
       </div>
 
-      <div class="features-grid">
-        <div class="feature-card">
-          <div class="feature-icon">📸</div>
-          <h3 style="margin-bottom:0.5rem; font-size:1.2rem;">Real Photo Digitization</h3>
-          <p style="color:var(--text-muted); font-size:0.9rem;">Upload private clothing photos and describe each piece in your wardrobe.</p>
+      <section style="margin-top: 3.5rem;">
+        <h2 style="font-size: 2rem; margin-bottom: 1.5rem;">How it works</h2>
+        <div class="features-grid">
+          <article class="feature-card">
+            <div class="feature-icon">👕</div>
+            <h3 style="margin-bottom:0.4rem; font-size:1.25rem;">Build your closet</h3>
+            <p style="color:var(--text-muted); font-size:0.92rem; line-height: 1.55;">Photograph what you own and sort it into tops, bottoms, footwear and more.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">✨</div>
+            <h3 style="margin-bottom:0.4rem; font-size:1.25rem;">Pick an occasion</h3>
+            <p style="color:var(--text-muted); font-size:0.92rem; line-height: 1.55;">College, interview, wedding, festival, vacation — or anything you type in.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">🌦️</div>
+            <h3 style="margin-bottom:0.4rem; font-size:1.25rem;">Get weather-smart looks</h3>
+            <p style="color:var(--text-muted); font-size:0.92rem; line-height: 1.55;">Live temperature, rain and wind shape every recommendation you receive.</p>
+          </article>
+          <article class="feature-card">
+            <div class="feature-icon">♥</div>
+            <h3 style="margin-bottom:0.4rem; font-size:1.25rem;">Save what you love</h3>
+            <p style="color:var(--text-muted); font-size:0.92rem; line-height: 1.55;">Favourites teach StyleMate your taste, so suggestions keep getting sharper.</p>
+          </article>
         </div>
-        ${renderOccasionChoices()}
-        <p class="catalog-sample-note">Explore style inspiration by occasion and category. Collections are examples, not products for sale.</p>
-        <div class="feature-card">
-          <div class="feature-icon">🪞</div>
-          <h3 style="margin-bottom:0.5rem; font-size:1.2rem;">Product Preview (Avatar Reference)</h3>
-          <p style="color:var(--text-muted); font-size:0.9rem;">Use a basic avatar reference with selected product images. Realistic garment fitting and size prediction are not available.</p>
+      </section>
+
+      ${renderOccasionChoices()}
+
+      <section style="margin-top: 3.5rem;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-bottom:1.5rem; flex-wrap:wrap; gap:1rem;">
+          <div>
+            <div class="hero-tag" style="margin-bottom:0.35rem;">Curated Inspiration</div>
+            <h2 style="font-size: 2rem;">Trending Styles</h2>
+          </div>
+          <button class="btn btn-secondary btn-sm" onclick="navigateTo('shop')">View full catalogue →</button>
         </div>
-        <div class="feature-card">
-          <div class="feature-icon">♥</div>
-          <h3 style="margin-bottom:0.5rem; font-size:1.2rem;">Saved Favorites</h3>
-          <p style="color:var(--text-muted); font-size:0.9rem;">Keep collections you like in your private favorites list.</p>
+        <div class="catalog-grid">
+          ${(state.products || []).slice(0, 4).map(renderProductCard).join('')}
         </div>
-      </div>
+      </section>
     </section>
   `;
 }
@@ -1284,8 +1409,9 @@ async function startTryonGeneration() {
   state.tryonIsGenerating = true;
   state.tryonError = null;
   state.tryonResultImage = null;
-  state.tryonStatusMessage = `Initiating AI virtual try-on with ${providerName}...`;
-  renderVirtualTryOnModal();
+  state.tryonStatusMessage = `Connecting to Hugging Face ZeroGPU pipeline (${providerName})...`;
+  state.modal = null; // Close studio modal; full-screen below navbar loader takes over without blinking!
+  render();
 
   try {
     const res = await api('/api/tryon/generate', {
@@ -1304,7 +1430,7 @@ async function startTryonGeneration() {
     }
 
     state.tryonStatusMessage = 'Neural synthesis in progress (processing garment drape)...';
-    renderVirtualTryOnModal();
+    updateTryonLoadingStatus('Neural synthesis in progress (processing garment drape)...', 2);
 
     let attempts = 0;
     const maxAttempts = 72; // 72 * 2.5s = 180 seconds (sensible overall timeout)
@@ -1326,6 +1452,7 @@ async function startTryonGeneration() {
           state.tryonStatusMessage = '';
           showToast('Virtual try-on generated successfully!');
           renderVirtualTryOnModal();
+          render();
         } else if (statusRes.status === 'failed') {
           clearInterval(state.tryonPollingInterval);
           state.tryonPollingInterval = null;
@@ -1333,6 +1460,7 @@ async function startTryonGeneration() {
           state.tryonError = statusRes.error || 'Virtual try-on synthesis failed at provider.';
           state.tryonStatusMessage = '';
           renderVirtualTryOnModal();
+          render();
         } else {
           const elapsed = statusRes.elapsed_seconds || Math.round(attempts * 2.5);
           let phaseDesc = 'Connecting to Hugging Face ZeroGPU pipeline...';
@@ -1343,8 +1471,9 @@ async function startTryonGeneration() {
           } else if (elapsed > 35) {
             phaseDesc = 'Finalizing garment deformation & neural drape...';
           }
-          state.tryonStatusMessage = `${phaseDesc} (${elapsed}s)`;
-          renderVirtualTryOnModal();
+          state.tryonStatusMessage = phaseDesc;
+          // Smooth DOM update without re-rendering the app (zero blinking / flickering)
+          updateTryonLoadingStatus(phaseDesc, elapsed);
         }
       } catch (pollErr) {
         if (attempts >= maxAttempts) {
@@ -1354,6 +1483,7 @@ async function startTryonGeneration() {
           state.tryonError = 'Try-on request timed out after 180 seconds. Please try again.';
           state.tryonStatusMessage = '';
           renderVirtualTryOnModal();
+          render();
         }
       }
 
@@ -1364,6 +1494,7 @@ async function startTryonGeneration() {
         state.tryonError = 'Try-on request timed out after 180 seconds. Please try again.';
         state.tryonStatusMessage = '';
         renderVirtualTryOnModal();
+        render();
       }
     }, 2500);
 
@@ -1376,6 +1507,7 @@ async function startTryonGeneration() {
     state.tryonError = err.message || 'Failed to initiate try-on generation.';
     state.tryonStatusMessage = '';
     renderVirtualTryOnModal();
+    render();
   }
 }
 
